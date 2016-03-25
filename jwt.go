@@ -32,22 +32,35 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 
 		// If token contains rules with allow or deny, evaluate
 		if len(p.AccessRules) > 0 {
-			var isAuthorized = false
+			var isAuthorized []bool
 			for _, rule := range p.AccessRules {
 				switch rule.Authorize {
 				case ALLOW:
 					if vToken.Claims[rule.Claim] == rule.Value {
-						isAuthorized = true
+						isAuthorized = append(isAuthorized, true)
+					}
+					if vToken.Claims[rule.Claim] != rule.Value {
+						isAuthorized = append(isAuthorized, false)
 					}
 				case DENY:
 					if vToken.Claims[rule.Claim] == rule.Value {
-						isAuthorized = false
+						isAuthorized = append(isAuthorized, false)
+					}
+					if vToken.Claims[rule.Claim] != rule.Value {
+						isAuthorized = append(isAuthorized, true)
 					}
 				default:
 					return http.StatusUnauthorized, fmt.Errorf("unknown rule type")
 				}
 			}
-			if !isAuthorized {
+			// test all flags, if any are true then ok to pass
+			ok := false
+			for _, result := range isAuthorized {
+				if result {
+					ok = true
+				}
+			}
+			if !ok {
 				return http.StatusUnauthorized, nil
 			}
 		}

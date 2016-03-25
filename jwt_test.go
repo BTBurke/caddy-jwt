@@ -246,16 +246,137 @@ var _ = Describe("JWTAuth", func() {
 
 		Describe("Function correctly as an authorization middleware for complex access rules", func() {
 
-			tokenU := genToken("secret", map[string]string{"user": "test", "role": "member"})
-
+			tokenUser := genToken("secret", map[string]string{"user": "test", "role": "member"})
+			tokenNotUser := genToken("secret", map[string]string{"user": "bad"})
+			tokenAdmin := genToken("secret", map[string]string{"role": "admin"})
+			accessRuleAllowUser := AccessRule{Authorize: ALLOW,
+				Claim: "user",
+				Value: "test",
+			}
+			accessRuleAllowRole := AccessRule{Authorize: ALLOW,
+				Claim: "role",
+				Value: "admin",
+			}
+			accessRuleDenyRole := AccessRule{Authorize: DENY,
+				Claim: "role",
+				Value: "member",
+			}
+			ruleAllowUser := Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleAllowUser}}
+			ruleDenyRole := Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole}}
+			ruleAllowRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleAllowRole, accessRuleAllowUser}}}
+			ruleDenyRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole, accessRuleAllowUser}}}
 			It("should allow authorization based on a specific claim value", func() {
 				rw := JWTAuth{
 					Next:  middleware.HandlerFunc(passThruHandler),
-					Rules: []Rule{Rule{Path: "/testing", AccessRule{Authorize: ALLOW, Claim: "user", Value: "test"}}},
+					Rules: []Rule{ruleAllowUser},
 				}
 
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", tokenUser}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+			})
+			It("should deny authorization based on a specific claim value that doesnt match", func() {
+				rw := JWTAuth{
+					Next:  middleware.HandlerFunc(passThruHandler),
+					Rules: []Rule{ruleAllowUser},
+				}
+
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", tokenNotUser}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusUnauthorized))
+			})
+			It("should correctly apply rules in order with multiple ALLOWs", func() {
+				// tests situation where user is denied based on wrong role
+				// but subsequent allow based on username is ok
+				rw := JWTAuth{
+					Next:  middleware.HandlerFunc(passThruHandler),
+					Rules: ruleAllowRoleAllowUser,
+				}
+
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", tokenUser}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+			})
+			It("should correctly apply rules in order with a DENY then ALLOW", func() {
+				// test situation where default deny for a particular role
+				// subsequent rule based on user ok
+				rw := JWTAuth{
+					Next:  middleware.HandlerFunc(passThruHandler),
+					Rules: ruleDenyRoleAllowUser,
+				}
+
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", tokenUser}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
 			})
 
+			It("should correctly deny based on specific match", func() {
+				// tests situation where user is denied based on wrong role
+				// but subsequent allow based on username is ok
+				rw := JWTAuth{
+					Next:  middleware.HandlerFunc(passThruHandler),
+					Rules: []Rule{ruleDenyRole},
+				}
+
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", tokenUser}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusUnauthorized))
+			})
+
+			It("should allow based on no match to DENY", func() {
+				// tests situation where user is denied based on wrong role
+				// but subsequent allow based on username is ok
+				rw := JWTAuth{
+					Next:  middleware.HandlerFunc(passThruHandler),
+					Rules: []Rule{ruleDenyRole},
+				}
+
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", tokenAdmin}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+			})
 		})
 
 	})
