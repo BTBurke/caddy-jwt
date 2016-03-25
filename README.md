@@ -81,7 +81,7 @@ Token-Claim-Logins: 10
 Token: <full token string>
 ```
 
-Tokens will always be converted to a string.  If you pass another type in your claims, remember to convert it before you use it.  The full token string is always passed as `Token`.
+Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.  The full token string is always passed as `Token`.
 
 ### Caveats
 
