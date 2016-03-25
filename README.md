@@ -24,7 +24,7 @@ path [path2]
 
 ### Ways of passing a token for validation
 
-There are three ways to pass the token for validation: (1) in the Authorization header, (2) as a cookie, and (3) as a URL query parameter.  The middleware will look in those places in the order listed and return `401` if it can't find any token.
+There are three ways to pass the token for validation: (1) in the `Authorization` header, (2) as a cookie, and (3) as a URL query parameter.  The middleware will look in those places in the order listed and return `401` if it can't find any token.
 
 ##### Authorization Header
 ```
