@@ -8,19 +8,13 @@ import (
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/mholt/caddy/caddy/setup"
 	"github.com/mholt/caddy/middleware"
 )
 
-type JWTAuth struct {
-	Paths []string
-	Next  middleware.Handler
-}
-
 func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 	// if the request path is any of the configured paths, validate JWT
-	for _, p := range h.Paths {
-		if !middleware.Path(r.URL.Path).Matches(p) {
+	for _, p := range h.Rules {
+		if !middleware.Path(r.URL.Path).Matches(p.Path) {
 			continue
 		}
 
@@ -34,6 +28,28 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		vToken, err := ValidateToken(uToken)
 		if err != nil {
 			return http.StatusUnauthorized, nil
+		}
+
+		// If token contains rules with allow or deny, evaluate
+		if len(p.AccessRules) > 0 {
+			var isAuthorized = false
+			for _, rule := range p.AccessRules {
+				switch rule.Authorize {
+				case ALLOW:
+					if vToken.Claims[rule.Claim] == rule.Value {
+						isAuthorized = true
+					}
+				case DENY:
+					if vToken.Claims[rule.Claim] == rule.Value {
+						isAuthorized = false
+					}
+				default:
+					return http.StatusUnauthorized, fmt.Errorf("unknown rule type")
+				}
+			}
+			if !isAuthorized {
+				return http.StatusUnauthorized, nil
+			}
 		}
 
 		// set claims as separate headers for downstream to consume
@@ -123,76 +139,4 @@ func lookupSecret() ([]byte, error) {
 		return nil, fmt.Errorf("JWT_SECRET not set")
 	}
 	return []byte(secret), nil
-}
-
-func Setup(c *setup.Controller) (middleware.Middleware, error) {
-	paths, err := parse(c)
-	if err != nil {
-		return nil, err
-	}
-
-	// On Caddy startup checks for JWT_SECRET. Warn only if not present since
-	// separate authentication function may set this value when creating first
-	// token.
-	c.Startup = append(c.Startup, func() error {
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			fmt.Println("WARN: JWT secret not set. Will return 401 unauthorized until secret set in environment variable JWT_SECRET")
-		}
-		fmt.Println("JWT middleware is initiated")
-		return nil
-	})
-
-	return func(next middleware.Handler) middleware.Handler {
-		return &JWTAuth{
-			Paths: paths,
-			Next:  next,
-		}
-	}, nil
-}
-
-func parse(c *setup.Controller) ([]string, error) {
-	// This parses the following config blocks
-	/*
-		jwt /hello
-		jwt /anotherpath
-		jwt {
-			path /hello
-			path /anotherpath
-		}
-	*/
-	var paths []string
-	for c.Next() {
-		args := c.RemainingArgs()
-		switch len(args) {
-		case 0:
-			// no argument passed, check the config block
-			for c.NextBlock() {
-				switch c.Val() {
-				case "path":
-					if !c.NextArg() {
-						// we are expecting a value
-						return paths, c.ArgErr()
-					}
-					p := c.Val()
-					paths = append(paths, p)
-					if c.NextArg() {
-						// we are expecting only one value.
-						return paths, c.ArgErr()
-					}
-				}
-			}
-		case 1:
-			// one argument passed
-			paths = append(paths, args[0])
-			if c.NextBlock() {
-				// path specified, no block required.
-				return paths, c.ArgErr()
-			}
-		default:
-			// we want only one argument max
-			return paths, c.ArgErr()
-		}
-	}
-	return paths, nil
 }

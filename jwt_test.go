@@ -31,6 +31,20 @@ func passThruHandler(w http.ResponseWriter, r *http.Request) (int, error) {
 	return http.StatusOK, nil
 }
 
+func genToken(secret string, claims map[string]string) string {
+	token := jwt.New(jwt.SigningMethodHS256)
+	token.Claims["exp"] = time.Now().Add(time.Hour * 1).Unix()
+
+	for claim, value := range claims {
+		token.Claims[claim] = value
+	}
+	validToken, err := token.SignedString([]byte(secret))
+	if err != nil {
+		Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
+	}
+	return validToken
+}
+
 var _ = Describe("JWTAuth", func() {
 	Describe("Use environment to get secrets", func() {
 
@@ -139,7 +153,7 @@ var _ = Describe("JWTAuth", func() {
 	Describe("Function correctly as an authorization middleware", func() {
 		rw := JWTAuth{
 			Next:  middleware.HandlerFunc(passThruHandler),
-			Paths: []string{"/testing"},
+			Rules: []Rule{Rule{Path: "/testing"}},
 		}
 
 		if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
@@ -227,6 +241,20 @@ var _ = Describe("JWTAuth", func() {
 				}
 				Expect(val[0]).To(Equal(value))
 			}
+
+		})
+
+		Describe("Function correctly as an authorization middleware for complex access rules", func() {
+
+			tokenU := genToken("secret", map[string]string{"user": "test", "role": "member"})
+
+			It("should allow authorization based on a specific claim value", func() {
+				rw := JWTAuth{
+					Next:  middleware.HandlerFunc(passThruHandler),
+					Rules: []Rule{Rule{Path: "/testing", AccessRule{Authorize: ALLOW, Claim: "user", Value: "test"}}},
+				}
+
+			})
 
 		})
 
