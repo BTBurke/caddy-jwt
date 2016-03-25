@@ -34,7 +34,9 @@ jwt {
 }
 ```
 
-To authorize access based on a claim, use the `allow` syntax.  To deny access, use the `deny` keyword.  You can use multiple keywords to achieve complex access rules.  If any access rule returns true, access will be allowed.  For example, suppose you have a token with `user: someone` and `role: member`.  If you have the following access block:
+To authorize access based on a claim, use the `allow` syntax.  To deny access, use the `deny` keyword.  You can use multiple keywords to achieve complex access rules.  If any `allow` access rule returns true, access will be allowed.  If a `deny` rule is true, access will be denied.  Deny rules will allow any other value for that claim.   
+
+  For example, suppose you have a token with `user: someone` and `role: member`.  If you have the following access block:
 
 ```
 jwt {
