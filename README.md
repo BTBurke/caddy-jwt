@@ -4,7 +4,7 @@
 
 This middleware implements an authorization layer for [Caddy](https://caddyserver.com) based on JSON Web Tokens (JWT).  You can learn more about using JWT in your application at [jwt.io](https://jwt.io).
 
-### Syntax
+### Basic Syntax
 
 
 ```
@@ -21,6 +21,30 @@ path [path2]
 ```
 
 > **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`.  Otherwise, your tokens will always silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated. 
+
+### Advanced Syntax
+
+You can optionally use claim information to further control access to your routes.  In a `jwt` block you can specify rules to allow or deny access based on the value of a claim.
+
+```
+jwt {
+   path [path]
+   allow [claim] [value]
+   deny [claim] [value]
+}
+```
+
+To authorize access based on a claim, use the `allow` syntax.  To deny access, use the `deny` keyword.  You can use multiple keywords to achieve complex access rules.  If any access rule returns true, access will be allowed.  For example, suppose you have a token with `user: someone` and `role: member`.  If you have the following access block:
+
+```
+jwt {
+   path /protected
+   deny role member
+   allow user someone
+}
+```
+
+The middleware will deny everyone with `role: member` but will allow the specific user named `someone`.  A different user with a `role: admin` or `role: foo` would be allowed because the deny rule will allow anyone that doesn't have role member.
 
 ### Ways of passing a token for validation
 
