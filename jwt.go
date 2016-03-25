@@ -41,23 +41,23 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 			c := strings.ToUpper(claim)
 			switch value.(type) {
 			case string:
-				r.Header.Set(strings.Join([]string{"X-Token-Claim-", c}, ""), value.(string))
+				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), value.(string))
 			case int64:
-				r.Header.Set(strings.Join([]string{"X-Token-Claim-", c}, ""), strconv.FormatInt(value.(int64), 10))
+				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatInt(value.(int64), 10))
 			case bool:
-				r.Header.Set(strings.Join([]string{"X-Token-Claim-", c}, ""), strconv.FormatBool(value.(bool)))
+				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatBool(value.(bool)))
 			case int32:
-				r.Header.Set(strings.Join([]string{"X-Token-Claim-", c}, ""), strconv.FormatInt(int64(value.(int32)), 10))
+				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatInt(int64(value.(int32)), 10))
 			case float32:
-				r.Header.Set(strings.Join([]string{"X-Token-Claim-", c}, ""), strconv.FormatFloat(float64(value.(float32)), 'f', -1, 32))
+				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatFloat(float64(value.(float32)), 'f', -1, 32))
 			case float64:
-				r.Header.Set(strings.Join([]string{"X-Token-Claim-", c}, ""), strconv.FormatFloat(value.(float64), 'f', -1, 64))
+				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatFloat(value.(float64), 'f', -1, 64))
 			default:
 				return http.StatusUnauthorized, fmt.Errorf("unknown claim type, unable to convert to string")
 			}
 		}
 		// pass raw token in case downstream wants to do more sophisticated processing
-		r.Header.Set("X-Token", vToken.Raw)
+		r.Header.Set("Token", vToken.Raw)
 		return h.Next.ServeHTTP(w, r)
 	}
 	// pass request if no paths protected with JWT

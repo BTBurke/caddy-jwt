@@ -213,11 +213,11 @@ var _ = Describe("JWTAuth", func() {
 
 			Expect(result).To(Equal(http.StatusOK))
 			expectedHeaders := map[string]string{
-				"X-Token-Claim-User":    "test",
-				"X-Token-Claim-Bool":    "true",
-				"X-Token-Claim-Float32": "3.14159",
-				"X-Token-Claim-Float64": "3.14159",
-				"X-Token-Claim-Int32":   "10",
+				"Token-Claim-User":    "test",
+				"Token-Claim-Bool":    "true",
+				"Token-Claim-Float32": "3.14159",
+				"Token-Claim-Float64": "3.14159",
+				"Token-Claim-Int32":   "10",
 			}
 			returnedHeaders := rec.Header()
 			for head, value := range expectedHeaders {
