@@ -62,7 +62,7 @@ JWTs consist of three parts: header, claims, and signature.  To properly constru
 
 ### Acting on claims in the token
 
-You can of course add extra claims in the claim section.  Once the token is validated, the claims you include will be passed as headers to a downstream resource.  For example, if you include the following claims in your token:
+You can of course add extra claims in the claim section.  Once the token is validated, the claims you include will be passed as headers to a downstream resource.  Since the token has been validated by Caddy, you can be assured that these headers represent valid claims from your token.  For example, if you include the following claims in your token:
 
 ```json
 {
@@ -75,13 +75,13 @@ You can of course add extra claims in the claim section.  Once the token is vali
 The following headers will be added to the request that is proxied to your application:
 
 ```
-X-Token-Claim-User: test
-X-Token-Claim-Role: admin
-X-Token-Claim-Logins: 10
-X-Token: <full token string>
+Token-Claim-User: test
+Token-Claim-Role: admin
+Token-Claim-Logins: 10
+Token: <full token string>
 ```
 
-Tokens will always be converted to a string.  If you pass another type in your claims, remember to convert it before you use it.  The full token string is always passed as `X-Token`.
+Tokens will always be converted to a string.  If you pass another type in your claims, remember to convert it before you use it.  The full token string is always passed as `Token`.
 
 ### Caveats
 
