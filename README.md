@@ -1,6 +1,6 @@
 ## JWT
 
-** Authorization Middleware for Caddy **
+**Authorization Middleware for Caddy**
 
 This middleware implements an authorization middleware for [Caddy](https://caddyserver.com) based on JSON Web Tokens (JWT).  You can learn more about using JWT in your application at [jwt.io](https://jwt.io).
 
