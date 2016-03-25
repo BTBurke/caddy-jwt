@@ -27,7 +27,7 @@ path [path2]
 
 JWTs consist of three parts: header, claims, and signature.  To properly construct a JWT, it's recommended that you use a JWT library appropriate for your language.  At a minimum, this authorization middleware expects the following fields to be present:
 
-#### Header
+##### Header
 ```json
 {
 "typ": "JWT",
@@ -35,7 +35,7 @@ JWTs consist of three parts: header, claims, and signature.  To properly constru
 }
 ```
 
-### Claims
+##### Claims
 ```json
 {
 "exp": "<expiration date as a Unix timestamp>"
@@ -49,7 +49,7 @@ You can of course add extra claims in the claim section.  Once the token is vali
 ```json
 {
 "user": "test",
-"role: "admin",
+"role": "admin",
 "logins": 10
 }
 ```
