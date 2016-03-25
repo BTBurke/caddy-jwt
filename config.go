@@ -62,8 +62,9 @@ func parse(c *setup.Controller) ([]Rule, error) {
 		switch len(args) {
 		case 0:
 			// no argument passed, check the config block
+
+			var r = Rule{}
 			for c.NextBlock() {
-				var r = Rule{}
 				switch c.Val() {
 				case "path":
 					if !c.NextArg() {
@@ -88,8 +89,8 @@ func parse(c *setup.Controller) ([]Rule, error) {
 					}
 					r.AccessRules = append(r.AccessRules, AccessRule{Authorize: DENY, Claim: args1[0], Value: args1[1]})
 				}
-				rules = append(rules, r)
 			}
+			rules = append(rules, r)
 		case 1:
 			rules = append(rules, Rule{Path: args[0]})
 			// one argument passed
@@ -100,6 +101,12 @@ func parse(c *setup.Controller) ([]Rule, error) {
 		default:
 			// we want only one argument max
 			return nil, c.ArgErr()
+		}
+	}
+	// check all rules at least have a path
+	for _, r := range rules {
+		if r.Path == "" {
+			return nil, fmt.Errorf("Each rule must have a path")
 		}
 	}
 	return rules, nil
