@@ -67,7 +67,7 @@ JWTs consist of three parts: header, claims, and signature.  To properly constru
 "alg": "HS256|HS384|HS512"
 }
 ```
-See progress on #3 if you're interested in public key signing algorithms.
+See progress on https://github.com/BTBurke/caddy-jwt/issues/3 if you're interested in public key signing algorithms.
 
 ##### Claims
 ```json
