@@ -22,7 +22,7 @@ var EmptyNext = middleware.HandlerFunc(func(w http.ResponseWriter, r *http.Reque
 var _ = Describe("JWTAuth Config", func() {
 	Describe("Parse the jwt config block", func() {
 
-		It("parses a simple declaration", func() {
+		It("returns an appropriate middleware handler", func() {
 			c := setup.NewTestController(`jwt /from`)
 
 			mid, err := Setup(c)
@@ -58,6 +58,12 @@ var _ = Describe("JWTAuth Config", func() {
 				}`, false, []Rule{Rule{"/test", []AccessRule{AccessRule{DENY, "role", "member"}, AccessRule{ALLOW, "user", "test"}}}}},
 				{`jwt {
 					deny role member
+				}`, true, nil},
+				{`jwt /path1
+				jwt /path2`, false, []Rule{Rule{"/path1", nil}, Rule{"/path2", nil}}},
+				{`jwt {
+					path /path1
+					path /path2
 				}`, true, nil},
 			}
 			for _, test := range tests {

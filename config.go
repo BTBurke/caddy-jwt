@@ -71,6 +71,10 @@ func parse(c *setup.Controller) ([]Rule, error) {
 						// we are expecting a value
 						return nil, c.ArgErr()
 					}
+					// return error if multiple paths in a block
+					if len(r.Path) != 0 {
+						return nil, c.ArgErr()
+					}
 					r.Path = c.Val()
 					if c.NextArg() {
 						// we are expecting only one value.

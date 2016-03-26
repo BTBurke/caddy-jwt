@@ -11,13 +11,11 @@ This middleware implements an authorization layer for [Caddy](https://caddyserve
 jwt [path]
 ```
 
-By default every resource under path will be secured using JWT validation.  To specify a list of resources that need to be secured, use:
+By default every resource under path will be secured using JWT validation.  To specify a list of resources that need to be secured, use multiple declarations:
 
 ```
-jwt {
-path [path1]
-path [path2]
-}
+jwt [path1]
+jwt [path2]
 ```
 
 > **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`.  Otherwise, your tokens will always silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated. 
