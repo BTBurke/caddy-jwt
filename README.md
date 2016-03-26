@@ -50,20 +50,11 @@ The middleware will deny everyone with `role: member` but will allow the specifi
 
 There are three ways to pass the token for validation: (1) in the `Authorization` header, (2) as a cookie, and (3) as a URL query parameter.  The middleware will look in those places in the order listed and return `401` if it can't find any token.
 
-##### Authorization Header
-```
-Authorization: Bearer <token>
-```
-
-##### Cookie
-```
-"jwt_token": <token>
-```
-
-##### URL Query Paramter
-```
-/protected?token=<token>
-```
+| Method               | Format                          |
+| -------------------- | ------------------------------- |
+| Authorization Header | `Authorization: Bearer <token>` |
+| Cookie               | `"jwt_token": <token>`          |
+| URL Query Parameter  | `/protected?token=<token>`      |
 
 ### Constructing a valid token
 
