@@ -72,7 +72,7 @@ See progress on https://github.com/BTBurke/caddy-jwt/issues/3 if you're interest
 ##### Claims
 ```json
 {
-"exp": <expiration date as a Unix timestamp (integer)>
+"exp": expiration date as a Unix timestamp (integer)
 }
 ```
 
