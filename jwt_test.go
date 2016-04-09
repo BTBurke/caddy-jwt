@@ -131,6 +131,23 @@ var _ = Describe("JWTAuth", func() {
 			Expect(vToken).To(BeNil())
 		})
 
+		It("should not validate a token with an expired timestamp", func() {
+			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
+				Fail("unexpected error setting JWT_SECRET")
+			}
+			token := jwt.New(jwt.SigningMethodHS256)
+			token.Claims["exp"] = time.Now().Add(time.Hour * -1).Unix()
+			sToken, err := token.SignedString([]byte("secret"))
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
+			}
+
+			vToken, err := ValidateToken(sToken)
+
+			Expect(err).To(HaveOccurred())
+			Expect(vToken).To(BeNil())
+		})
+
 		It("should not allow JWT with algorithm none", func() {
 			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 				Fail("unexpected error setting JWT_SECRET")
