@@ -70,9 +70,10 @@ JWTs consist of three parts: header, claims, and signature.  To properly constru
 See progress on https://github.com/BTBurke/caddy-jwt/issues/3 if you're interested in public key signing algorithms.
 
 ##### Claims
+If you want to limit the validity of your tokens to a certain time period, use the "exp" field to declare the expiry time of your token.  This time should be a Unix timestamp in integer format.
 ```json
 {
-"exp": expiration date as a Unix timestamp (integer)
+"exp": 1460192076
 }
 ```
 
