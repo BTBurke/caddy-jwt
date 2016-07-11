@@ -2,8 +2,9 @@ package jwt
 
 import (
 	"fmt"
-	"github.com/mholt/caddy/caddy/setup"
-	"github.com/mholt/caddy/middleware"
+
+	"github.com/mholt/caddy"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
 const (
@@ -13,7 +14,7 @@ const (
 
 type JWTAuth struct {
 	Rules []Rule
-	Next  middleware.Handler
+	Next  httpserver.Handler
 }
 
 type Rule struct {
@@ -27,26 +28,35 @@ type AccessRule struct {
 	Value     string
 }
 
-func Setup(c *setup.Controller) (middleware.Middleware, error) {
+func init() {
+	caddy.RegisterPlugin("jwt", caddy.Plugin{
+		ServerType: "http",
+		Action:     Setup,
+	})
+}
+
+func Setup(c *caddy.Controller) error {
 	rules, err := parse(c)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	c.Startup = append(c.Startup, func() error {
+	c.OnStartup(func() error {
 		fmt.Println("JWT middleware is initiated")
 		return nil
 	})
 
-	return func(next middleware.Handler) middleware.Handler {
+	httpserver.GetConfig(c).AddMiddleware(func(next httpserver.Handler) httpserver.Handler {
 		return &JWTAuth{
 			Rules: rules,
 			Next:  next,
 		}
-	}, nil
+	})
+
+	return nil
 }
 
-func parse(c *setup.Controller) ([]Rule, error) {
+func parse(c *caddy.Controller) ([]Rule, error) {
 	// This parses the following config blocks
 	/*
 		jwt /hello

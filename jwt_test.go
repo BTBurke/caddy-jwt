@@ -2,16 +2,17 @@ package jwt
 
 import (
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/mholt/caddy/middleware"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -169,7 +170,7 @@ var _ = Describe("JWTAuth", func() {
 
 	Describe("Function correctly as an authorization middleware", func() {
 		rw := JWTAuth{
-			Next:  middleware.HandlerFunc(passThruHandler),
+			Next:  httpserver.HandlerFunc(passThruHandler),
 			Rules: []Rule{Rule{Path: "/testing"}},
 		}
 
@@ -284,7 +285,7 @@ var _ = Describe("JWTAuth", func() {
 			ruleDenyRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole, accessRuleAllowUser}}}
 			It("should allow authorization based on a specific claim value", func() {
 				rw := JWTAuth{
-					Next:  middleware.HandlerFunc(passThruHandler),
+					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleAllowUser},
 				}
 
@@ -301,7 +302,7 @@ var _ = Describe("JWTAuth", func() {
 			})
 			It("should deny authorization based on a specific claim value that doesnt match", func() {
 				rw := JWTAuth{
-					Next:  middleware.HandlerFunc(passThruHandler),
+					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleAllowUser},
 				}
 
@@ -320,7 +321,7 @@ var _ = Describe("JWTAuth", func() {
 				// tests situation where user is denied based on wrong role
 				// but subsequent allow based on username is ok
 				rw := JWTAuth{
-					Next:  middleware.HandlerFunc(passThruHandler),
+					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: ruleAllowRoleAllowUser,
 				}
 
@@ -339,7 +340,7 @@ var _ = Describe("JWTAuth", func() {
 				// test situation where default deny for a particular role
 				// subsequent rule based on user ok
 				rw := JWTAuth{
-					Next:  middleware.HandlerFunc(passThruHandler),
+					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: ruleDenyRoleAllowUser,
 				}
 
@@ -359,7 +360,7 @@ var _ = Describe("JWTAuth", func() {
 				// tests situation where user is denied based on wrong role
 				// but subsequent allow based on username is ok
 				rw := JWTAuth{
-					Next:  middleware.HandlerFunc(passThruHandler),
+					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleDenyRole},
 				}
 
@@ -379,7 +380,7 @@ var _ = Describe("JWTAuth", func() {
 				// tests situation where user is denied based on wrong role
 				// but subsequent allow based on username is ok
 				rw := JWTAuth{
-					Next:  middleware.HandlerFunc(passThruHandler),
+					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleDenyRole},
 				}
 
