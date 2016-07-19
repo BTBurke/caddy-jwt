@@ -29,6 +29,7 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		if err != nil {
 			return http.StatusUnauthorized, nil
 		}
+		vClaims := vToken.Claims.(jwt.MapClaims)
 
 		// If token contains rules with allow or deny, evaluate
 		if len(p.AccessRules) > 0 {
@@ -36,17 +37,17 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 			for _, rule := range p.AccessRules {
 				switch rule.Authorize {
 				case ALLOW:
-					if vToken.Claims[rule.Claim] == rule.Value {
+					if vClaims[rule.Claim] == rule.Value {
 						isAuthorized = append(isAuthorized, true)
 					}
-					if vToken.Claims[rule.Claim] != rule.Value {
+					if vClaims[rule.Claim] != rule.Value {
 						isAuthorized = append(isAuthorized, false)
 					}
 				case DENY:
-					if vToken.Claims[rule.Claim] == rule.Value {
+					if vClaims[rule.Claim] == rule.Value {
 						isAuthorized = append(isAuthorized, false)
 					}
-					if vToken.Claims[rule.Claim] != rule.Value {
+					if vClaims[rule.Claim] != rule.Value {
 						isAuthorized = append(isAuthorized, true)
 					}
 				default:
@@ -66,7 +67,7 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		}
 
 		// set claims as separate headers for downstream to consume
-		for claim, value := range vToken.Claims {
+		for claim, value := range vClaims {
 			c := strings.ToUpper(claim)
 			switch value.(type) {
 			case string:

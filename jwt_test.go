@@ -34,10 +34,10 @@ func passThruHandler(w http.ResponseWriter, r *http.Request) (int, error) {
 
 func genToken(secret string, claims map[string]string) string {
 	token := jwt.New(jwt.SigningMethodHS256)
-	token.Claims["exp"] = time.Now().Add(time.Hour * 1).Unix()
+	token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 
 	for claim, value := range claims {
-		token.Claims[claim] = value
+		token.Claims.(jwt.MapClaims)[claim] = value
 	}
 	validToken, err := token.SignedString([]byte(secret))
 	if err != nil {
@@ -103,7 +103,7 @@ var _ = Describe("JWTAuth", func() {
 				Fail("unexpected error setting JWT_SECRET")
 			}
 			token := jwt.New(jwt.SigningMethodHS256)
-			token.Claims["exp"] = time.Now().Add(time.Hour * 1).Unix()
+			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 			sToken, err := token.SignedString([]byte("secret"))
 			if err != nil {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
@@ -120,7 +120,7 @@ var _ = Describe("JWTAuth", func() {
 				Fail("unexpected error setting JWT_SECRET")
 			}
 			token := jwt.New(jwt.SigningMethodHS256)
-			token.Claims["exp"] = time.Now().Add(time.Hour * 1).Unix()
+			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 			sToken, err := token.SignedString([]byte("notsecret"))
 			if err != nil {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
@@ -137,7 +137,7 @@ var _ = Describe("JWTAuth", func() {
 				Fail("unexpected error setting JWT_SECRET")
 			}
 			token := jwt.New(jwt.SigningMethodHS256)
-			token.Claims["exp"] = time.Now().Add(time.Hour * -1).Unix()
+			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * -1).Unix()
 			sToken, err := token.SignedString([]byte("secret"))
 			if err != nil {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
@@ -155,7 +155,7 @@ var _ = Describe("JWTAuth", func() {
 			}
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Header["alg"] = "none"
-			token.Claims["exp"] = time.Now().Add(time.Hour * 1).Unix()
+			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 			sToken, err := token.SignedString([]byte("secret"))
 			if err != nil {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
@@ -178,12 +178,12 @@ var _ = Describe("JWTAuth", func() {
 			Fail("unexpected error setting JWT_SECRET")
 		}
 		token := jwt.New(jwt.SigningMethodHS256)
-		token.Claims["exp"] = time.Now().Add(time.Hour * 1).Unix()
-		token.Claims["user"] = "test"
-		token.Claims["int32"] = int32(10)
-		token.Claims["float32"] = float32(3.14159)
-		token.Claims["float64"] = float64(3.14159)
-		token.Claims["bool"] = true
+		token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
+		token.Claims.(jwt.MapClaims)["user"] = "test"
+		token.Claims.(jwt.MapClaims)["int32"] = int32(10)
+		token.Claims.(jwt.MapClaims)["float32"] = float32(3.14159)
+		token.Claims.(jwt.MapClaims)["float64"] = float64(3.14159)
+		token.Claims.(jwt.MapClaims)["bool"] = true
 
 		validToken, err := token.SignedString([]byte("secret"))
 		if err != nil {
