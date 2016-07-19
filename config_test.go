@@ -1,13 +1,13 @@
 package jwt
 
 import (
-	"fmt"
-	"github.com/mholt/caddy/caddy/setup"
-	"github.com/mholt/caddy/middleware"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"net/http"
 	"testing"
+
+	"github.com/mholt/caddy"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 func TestCaddyJwtConfig(t *testing.T) {
@@ -15,7 +15,7 @@ func TestCaddyJwtConfig(t *testing.T) {
 	RunSpecs(t, "CaddyJWT Config Suite")
 }
 
-var EmptyNext = middleware.HandlerFunc(func(w http.ResponseWriter, r *http.Request) (int, error) {
+var EmptyNext = httpserver.HandlerFunc(func(w http.ResponseWriter, r *http.Request) (int, error) {
 	return 0, nil
 })
 
@@ -23,17 +23,9 @@ var _ = Describe("JWTAuth Config", func() {
 	Describe("Parse the jwt config block", func() {
 
 		It("returns an appropriate middleware handler", func() {
-			c := setup.NewTestController(`jwt /from`)
-
-			mid, err := Setup(c)
+			c := caddy.NewTestController("http", `jwt /from`)
+			err := Setup(c)
 			Expect(err).To(BeNil())
-
-			handler := mid(EmptyNext)
-			_, ok := handler.(*JWTAuth)
-			if !ok {
-				Fail(fmt.Sprintf("wrong type for handler: %#v", handler))
-			}
-
 		})
 
 		It("parses simple and complex blocks", func() {
@@ -67,7 +59,7 @@ var _ = Describe("JWTAuth Config", func() {
 				}`, true, nil},
 			}
 			for _, test := range tests {
-				c := setup.NewTestController(test.input)
+				c := caddy.NewTestController("http", test.input)
 				actual, err := parse(c)
 				if !test.shouldErr {
 					Expect(err).To(BeNil())

@@ -8,13 +8,13 @@ import (
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/mholt/caddy/middleware"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
 func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 	// if the request path is any of the configured paths, validate JWT
 	for _, p := range h.Rules {
-		if !middleware.Path(r.URL.Path).Matches(p.Path) {
+		if !httpserver.Path(r.URL.Path).Matches(p.Path) {
 			continue
 		}
 
