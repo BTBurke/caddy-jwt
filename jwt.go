@@ -86,8 +86,7 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 				return http.StatusUnauthorized, fmt.Errorf("unknown claim type, unable to convert to string")
 			}
 		}
-		// pass raw token in case downstream wants to do more sophisticated processing
-		r.Header.Set("Token", vToken.Raw)
+
 		return h.Next.ServeHTTP(w, r)
 	}
 	// pass request if no paths protected with JWT

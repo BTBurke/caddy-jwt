@@ -18,7 +18,7 @@ jwt [path1]
 jwt [path2]
 ```
 
-> **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`.  Otherwise, your tokens will always silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated. 
+> **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`.  Otherwise, your tokens will always silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated.
 
 ### Advanced Syntax
 
@@ -95,10 +95,9 @@ The following headers will be added to the request that is proxied to your appli
 Token-Claim-User: test
 Token-Claim-Role: admin
 Token-Claim-Logins: 10
-Token: <full token string>
 ```
 
-Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.  The full token string is always passed as `Token`.
+Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.
 
 ### Caveats
 
