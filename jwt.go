@@ -136,12 +136,13 @@ func ValidateToken(uToken string) (*jwt.Token, error) {
 		return secret, nil
 	})
 
-	if token.Valid && err == nil {
-		return token, nil
+	// if token is malformed or invalid, err can be inspected to get more information
+	// about which validation part failed
+	if err != nil {
+		return nil, err
 	}
-	// if token not valid, err can be inspected to get more information about which
-	// part failed validation
-	return nil, err
+
+	return token, nil
 }
 
 // JWT signing token must be set as environment variable JWT_SECRET and not
