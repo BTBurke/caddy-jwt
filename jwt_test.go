@@ -167,7 +167,40 @@ var _ = Describe("JWTAuth", func() {
 			Expect(vToken).To(BeNil())
 		})
 	})
+	Describe("Redirect on access deny works", func() {
+		It("return 303 when a redirect is configured and access denied", func() {
+			req, err := http.NewRequest("GET", "/testing", nil)
 
+			rec := httptest.NewRecorder()
+			rw := JWTAuth{
+				Rules: []Rule{{Path: "/testing", Redirect: "/login"}},
+			}
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusSeeOther))
+			Expect(rec.Result().StatusCode).To(Equal(http.StatusSeeOther))
+			Expect(rec.Result().Header.Get("Location")).To(Equal("/login"))
+		})
+		It("variables in location value are replaced", func() {
+			req, err := http.NewRequest("GET", "/testing", nil)
+
+			rec := httptest.NewRecorder()
+			rw := JWTAuth{
+				Rules: []Rule{{Path: "/testing", Redirect: "/login?backTo={uri}"}},
+			}
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusSeeOther))
+			Expect(rec.Result().StatusCode).To(Equal(http.StatusSeeOther))
+			Expect(rec.Result().Header.Get("Location")).To(Equal("/login?backTo=/testing"))
+		})
+	})
 	Describe("Function correctly as an authorization middleware", func() {
 		rw := JWTAuth{
 			Next:  httpserver.HandlerFunc(passThruHandler),

@@ -6,7 +6,6 @@ This middleware implements an authorization layer for [Caddy](https://caddyserve
 
 ### Basic Syntax
 
-
 ```
 jwt [path]
 ```
@@ -27,6 +26,7 @@ You can optionally use claim information to further control access to your route
 ```
 jwt {
    path [path]
+   redirect [location]
    allow [claim] [value]
    deny [claim] [value]
 }
@@ -45,6 +45,8 @@ jwt {
 ```
 
 The middleware will deny everyone with `role: member` but will allow the specific user named `someone`.  A different user with a `role: admin` or `role: foo` would be allowed because the deny rule will allow anyone that doesn't have role member.
+
+If the optional `redirect` is set, the middleware will send an redirect to the supplied location (HTTP 303) instead of an access denied code, if the access is denied.
 
 ### Ways of passing a token for validation
 
