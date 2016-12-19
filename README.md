@@ -21,7 +21,8 @@ jwt [path2]
 
 ### Advanced Syntax
 
-You can optionally use claim information to further control access to your routes.  In a `jwt` block you can specify rules to allow or deny access based on the value of a claim.
+You can optionally use claim information to further control access to your routes.  In a `jwt` block you can specify rules to allow or deny access based on the value of a claim. 
+If the claim is a json array of strings, the allow and deny directives will check, of the array contains the specified string value.
 
 ```
 jwt {
@@ -87,7 +88,8 @@ You can of course add extra claims in the claim section.  Once the token is vali
 {
 "user": "test",
 "role": "admin",
-"logins": 10
+"logins": 10,
+"groups": ["user", "operator"]
 }
 ```
 
@@ -97,6 +99,7 @@ The following headers will be added to the request that is proxied to your appli
 Token-Claim-User: test
 Token-Claim-Role: admin
 Token-Claim-Logins: 10
+Token-Claim-Groups: user,operator
 ```
 
 Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.
