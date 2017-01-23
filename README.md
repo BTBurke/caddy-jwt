@@ -22,7 +22,7 @@ jwt [path2]
 ### Advanced Syntax
 
 You can optionally use claim information to further control access to your routes.  In a `jwt` block you can specify rules to allow or deny access based on the value of a claim. 
-If the claim is a json array of strings, the allow and deny directives will check, of the array contains the specified string value.
+If the claim is a json array of strings, the allow and deny directives will check if the array contains the specified string value.  An allow or deny rule will be valid if any value in the array is a match.
 
 ```
 jwt {
@@ -47,7 +47,7 @@ jwt {
 
 The middleware will deny everyone with `role: member` but will allow the specific user named `someone`.  A different user with a `role: admin` or `role: foo` would be allowed because the deny rule will allow anyone that doesn't have role member.
 
-If the optional `redirect` is set, the middleware will send an redirect to the supplied location (HTTP 303) instead of an access denied code, if the access is denied.
+If the optional `redirect` is set, the middleware will send a redirect to the supplied location (HTTP 303) instead of an access denied code, if the access is denied.
 
 ### Ways of passing a token for validation
 
