@@ -17,6 +17,7 @@ import (
 
 const (
 	validToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
+	malformedToken = "loremIpsum"
 )
 
 func TestCaddyJwt(t *testing.T) {
@@ -127,6 +128,14 @@ var _ = Describe("JWTAuth", func() {
 			}
 
 			vToken, err := ValidateToken(sToken)
+
+			Expect(err).To(HaveOccurred())
+			Expect(vToken).To(BeNil())
+		})
+
+		It("should not validate a malformed token", func() {
+
+			vToken, err := ValidateToken(malformedToken)
 
 			Expect(err).To(HaveOccurred())
 			Expect(vToken).To(BeNil())
