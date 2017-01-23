@@ -33,7 +33,7 @@ func passThruHandler(w http.ResponseWriter, r *http.Request) (int, error) {
 	return http.StatusOK, nil
 }
 
-func genToken(secret string, claims map[string]string) string {
+func genToken(secret string, claims map[string]interface{}) string {
 	token := jwt.New(jwt.SigningMethodHS256)
 	token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 
@@ -176,7 +176,40 @@ var _ = Describe("JWTAuth", func() {
 			Expect(vToken).To(BeNil())
 		})
 	})
+	Describe("Redirect on access deny works", func() {
+		It("return 303 when a redirect is configured and access denied", func() {
+			req, err := http.NewRequest("GET", "/testing", nil)
 
+			rec := httptest.NewRecorder()
+			rw := JWTAuth{
+				Rules: []Rule{{Path: "/testing", Redirect: "/login"}},
+			}
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusSeeOther))
+			Expect(rec.Result().StatusCode).To(Equal(http.StatusSeeOther))
+			Expect(rec.Result().Header.Get("Location")).To(Equal("/login"))
+		})
+		It("variables in location value are replaced", func() {
+			req, err := http.NewRequest("GET", "/testing", nil)
+
+			rec := httptest.NewRecorder()
+			rw := JWTAuth{
+				Rules: []Rule{{Path: "/testing", Redirect: "/login?backTo={uri}"}},
+			}
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusSeeOther))
+			Expect(rec.Result().StatusCode).To(Equal(http.StatusSeeOther))
+			Expect(rec.Result().Header.Get("Location")).To(Equal("/login?backTo=/testing"))
+		})
+	})
 	Describe("Function correctly as an authorization middleware", func() {
 		rw := JWTAuth{
 			Next:  httpserver.HandlerFunc(passThruHandler),
@@ -193,6 +226,7 @@ var _ = Describe("JWTAuth", func() {
 		token.Claims.(jwt.MapClaims)["float32"] = float32(3.14159)
 		token.Claims.(jwt.MapClaims)["float64"] = float64(3.14159)
 		token.Claims.(jwt.MapClaims)["bool"] = true
+		token.Claims.(jwt.MapClaims)["list"] = []string{"foo", "bar", "bazz"}
 
 		validToken, err := token.SignedString([]byte("secret"))
 		if err != nil {
@@ -259,6 +293,7 @@ var _ = Describe("JWTAuth", func() {
 				"Token-Claim-Float32": "3.14159",
 				"Token-Claim-Float64": "3.14159",
 				"Token-Claim-Int32":   "10",
+				"Token-Claim-List":    "foo,bar,bazz",
 			}
 			returnedHeaders := rec.Header()
 			for head, value := range expectedHeaders {
@@ -273,9 +308,9 @@ var _ = Describe("JWTAuth", func() {
 
 		Describe("Function correctly as an authorization middleware for complex access rules", func() {
 
-			tokenUser := genToken("secret", map[string]string{"user": "test", "role": "member"})
-			tokenNotUser := genToken("secret", map[string]string{"user": "bad"})
-			tokenAdmin := genToken("secret", map[string]string{"role": "admin"})
+			tokenUser := genToken("secret", map[string]interface{}{"user": "test", "role": "member"})
+			tokenNotUser := genToken("secret", map[string]interface{}{"user": "bad"})
+			tokenAdmin := genToken("secret", map[string]interface{}{"role": "admin"})
 			accessRuleAllowUser := AccessRule{Authorize: ALLOW,
 				Claim: "user",
 				Value: "test",
@@ -403,6 +438,55 @@ var _ = Describe("JWTAuth", func() {
 				}
 
 				Expect(result).To(Equal(http.StatusOK))
+			})
+		})
+		Describe("Function correctly as an authorization middleware for list types", func() {
+
+			tokenGroups := genToken("secret", map[string]interface{}{"group": []string{"admin", "user"}})
+			tokenGroupsOperator := genToken("secret", map[string]interface{}{"group": []string{"operator"}})
+			ruleAllowUser := Rule{Path: "/testing", AccessRules: []AccessRule{
+				AccessRule{Authorize: ALLOW,
+					Claim: "group",
+					Value: "admin",
+				},
+				AccessRule{Authorize: DENY,
+					Claim: "group",
+					Value: "operator",
+				},
+			}}
+			It("should allow claim values, which are part of a list", func() {
+				rw := JWTAuth{
+					Next:  httpserver.HandlerFunc(passThruHandler),
+					Rules: []Rule{ruleAllowUser},
+				}
+
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", tokenGroups}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+			})
+			It("should deny claim values, which are part of a list", func() {
+				rw := JWTAuth{
+					Next:  httpserver.HandlerFunc(passThruHandler),
+					Rules: []Rule{ruleAllowUser},
+				}
+
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", tokenGroupsOperator}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusUnauthorized))
 			})
 		})
 

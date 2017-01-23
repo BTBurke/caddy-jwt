@@ -20,6 +20,7 @@ type JWTAuth struct {
 type Rule struct {
 	Path        string
 	AccessRules []AccessRule
+	Redirect    string
 }
 
 type AccessRule struct {
@@ -102,6 +103,12 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 						return nil, c.ArgErr()
 					}
 					r.AccessRules = append(r.AccessRules, AccessRule{Authorize: DENY, Claim: args1[0], Value: args1[1]})
+				case "redirect":
+					args1 := c.RemainingArgs()
+					if len(args1) != 1 {
+						return nil, c.ArgErr()
+					}
+					r.Redirect = args1[0]
 				}
 			}
 			rules = append(rules, r)

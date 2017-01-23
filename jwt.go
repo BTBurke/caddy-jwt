@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"bytes"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
@@ -21,13 +22,13 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		// Path matches, look for unvalidated token
 		uToken, err := ExtractToken(r)
 		if err != nil {
-			return http.StatusUnauthorized, nil
+			return handleUnauthorized(w, r, p), nil
 		}
 
 		// Validate token
 		vToken, err := ValidateToken(uToken)
 		if err != nil {
-			return http.StatusUnauthorized, nil
+			return handleUnauthorized(w, r, p), nil
 		}
 		vClaims := vToken.Claims.(jwt.MapClaims)
 
@@ -35,23 +36,15 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		if len(p.AccessRules) > 0 {
 			var isAuthorized []bool
 			for _, rule := range p.AccessRules {
+				v := vClaims[rule.Claim]
+				ruleMatches := contains(v, rule.Value) || v == rule.Value
 				switch rule.Authorize {
 				case ALLOW:
-					if vClaims[rule.Claim] == rule.Value {
-						isAuthorized = append(isAuthorized, true)
-					}
-					if vClaims[rule.Claim] != rule.Value {
-						isAuthorized = append(isAuthorized, false)
-					}
+					isAuthorized = append(isAuthorized, ruleMatches)
 				case DENY:
-					if vClaims[rule.Claim] == rule.Value {
-						isAuthorized = append(isAuthorized, false)
-					}
-					if vClaims[rule.Claim] != rule.Value {
-						isAuthorized = append(isAuthorized, true)
-					}
+					isAuthorized = append(isAuthorized, !ruleMatches)
 				default:
-					return http.StatusUnauthorized, fmt.Errorf("unknown rule type")
+					return handleUnauthorized(w, r, p), fmt.Errorf("unknown rule type")
 				}
 			}
 			// test all flags, if any are true then ok to pass
@@ -62,28 +55,39 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 				}
 			}
 			if !ok {
-				return http.StatusUnauthorized, nil
+				return handleUnauthorized(w, r, p), nil
 			}
 		}
 
 		// set claims as separate headers for downstream to consume
 		for claim, value := range vClaims {
-			c := strings.ToUpper(claim)
-			switch value.(type) {
+			headerName := "Token-Claim-" + strings.ToUpper(claim)
+			switch v := value.(type) {
 			case string:
-				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), value.(string))
+				r.Header.Set(headerName, v)
 			case int64:
-				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatInt(value.(int64), 10))
+				r.Header.Set(headerName, strconv.FormatInt(v, 10))
 			case bool:
-				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatBool(value.(bool)))
+				r.Header.Set(headerName, strconv.FormatBool(v))
 			case int32:
-				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatInt(int64(value.(int32)), 10))
+				r.Header.Set(headerName, strconv.FormatInt(int64(v), 10))
 			case float32:
-				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatFloat(float64(value.(float32)), 'f', -1, 32))
+				r.Header.Set(headerName, strconv.FormatFloat(float64(v), 'f', -1, 32))
 			case float64:
-				r.Header.Set(strings.Join([]string{"Token-Claim-", c}, ""), strconv.FormatFloat(value.(float64), 'f', -1, 64))
+				r.Header.Set(headerName, strconv.FormatFloat(v, 'f', -1, 64))
+			case []interface{}:
+				b := bytes.NewBufferString("")
+				for i, item := range v {
+					if i > 0 {
+						b.WriteString(",")
+					}
+					b.WriteString(fmt.Sprintf("%v", item))
+				}
+				r.Header.Set(headerName, b.String())
 			default:
-				return http.StatusUnauthorized, fmt.Errorf("unknown claim type, unable to convert to string")
+				// ignore, because, JWT spec says in https://tools.ietf.org/html/rfc7519#section-4
+				//     all claims that are not understood
+				//     by implementations MUST be ignored.
 			}
 		}
 
@@ -153,4 +157,30 @@ func lookupSecret() ([]byte, error) {
 		return nil, fmt.Errorf("JWT_SECRET not set")
 	}
 	return []byte(secret), nil
+}
+
+// handleUnauthorized checks, which action should be performed if access was denied.
+// It returns the status code and writes the Location header in case of a redirect.
+// Possible caddy variables in the location value will be substituted.
+func handleUnauthorized(w http.ResponseWriter, r *http.Request, rule Rule) int {
+	if rule.Redirect != "" {
+		replacer := httpserver.NewReplacer(r, nil, "")
+		http.Redirect(w, r, replacer.Replace(rule.Redirect), http.StatusSeeOther)
+		return http.StatusSeeOther
+	}
+	return http.StatusUnauthorized
+}
+
+// contains checks weather list is a slice ans containts the
+// supplied string value.
+func contains(list interface{}, value string) bool {
+	switch l := list.(type) {
+	case []interface{}:
+		for _, v := range l {
+			if v == value {
+				return true
+			}
+		}
+	}
+	return false
 }
