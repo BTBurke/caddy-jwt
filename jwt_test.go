@@ -54,18 +54,16 @@ var _ = Describe("JWTAuth", func() {
 			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 				Fail("Unexpected error setting JWT_SECRET")
 			}
-			secret, err := lookupSecret()
+			secret := lookupSecret()
 			Expect(secret).To(Equal([]byte("secret")))
-			Expect(err).To(BeNil())
 		})
 
 		It("should return an error JWT_SECRET not set", func() {
 			if err := os.Setenv("JWT_SECRET", ""); err != nil {
 				Fail("Unexpected error setting JWT_SECRET")
 			}
-			secret, err := lookupSecret()
+			secret := lookupSecret()
 			Expect(secret).To(BeNil())
-			Expect(err).To(HaveOccurred())
 		})
 	})
 
