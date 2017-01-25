@@ -156,7 +156,7 @@ func ValidateToken(uToken string) (*jwt.Token, error) {
 	if authBackend.HMACSecret != nil {
 		token, err := jwt.Parse(uToken, func(t *jwt.Token) (interface{}, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("Unexpected signing method: %v", t.Header["alg"])
+				return nil, fmt.Errorf("HMAC: Unexpected signing method: %v", t.Header["alg"])
 			}
 			return authBackend.HMACSecret, nil
 		})
@@ -170,7 +170,7 @@ func ValidateToken(uToken string) (*jwt.Token, error) {
 	if authBackend.RSAPublicKey != nil {
 		token, err := jwt.Parse(uToken, func(t *jwt.Token) (interface{}, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
-				return nil, fmt.Errorf("Unexpected signing method: %v", t.Header["alg"])
+				return nil, fmt.Errorf("RSA: Unexpected signing method: %v", t.Header["alg"])
 			}
 			return authBackend.RSAPublicKey, nil
 		})
