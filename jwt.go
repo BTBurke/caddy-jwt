@@ -11,7 +11,6 @@ import (
 	"bytes"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/jeremywohl/flatten"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
@@ -40,7 +39,7 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		if err != nil {
 			return handleUnauthorized(w, r, p), nil
 		}
-		vClaims, err := flatten.Flatten(vToken.Claims.(jwt.MapClaims), "", flatten.DotStyle)
+		vClaims, err := Flatten(vToken.Claims.(jwt.MapClaims), "", DotStyle)
 		if err != nil {
 			return handleUnauthorized(w, r, p), nil
 		}
