@@ -94,6 +94,29 @@ var _ = Describe("JWTAuth", func() {
 		})
 	})
 
+	Describe("Validate flatten map function", func() {
+
+		listMap := map[string]interface{}{"context": map[string]interface{}{"user": map[string]interface{}{"roles": []string{"admin", "user"}}}}
+		myMap := map[string]interface{}{"context": map[string]interface{}{"user": map[string]interface{}{"username": "foobar"}}}
+
+		It("Should flatten map with dots", func() {
+			result, err := Flatten(myMap, "", DotStyle)
+			if err != nil {
+				panic(err)
+			}
+			expectedMap := map[string]interface{}{"context.user.username": "foobar"}
+			Expect(result).To(Equal(expectedMap))
+		})
+		It("Should flatten map and leave slices as is", func() {
+			result, err := Flatten(listMap, "", DotStyle)
+			if err != nil {
+				panic(err)
+			}
+			expectedMap := map[string]interface{}{"context.user.roles": []string{"admin", "user"}}
+			Expect(result).To(Equal(expectedMap))
+		})
+	})
+
 	Describe("Find tokens in the request", func() {
 
 		It("should return the token if set in the Auhorization header", func() {
@@ -536,7 +559,6 @@ var _ = Describe("JWTAuth", func() {
 				Expect(result).To(Equal(http.StatusUnauthorized))
 			})
 		})
-
 	})
 
 })
