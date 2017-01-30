@@ -17,7 +17,7 @@ jwt [path1]
 jwt [path2]
 ```
 
-> **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`.  Otherwise, your tokens will always silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated.
+> **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`(HMAC) *or* `JWT_PUBLIC_KEY`(RSA).  Otherwise, your tokens will always silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated.
 
 ### Advanced Syntax
 
@@ -67,10 +67,9 @@ JWTs consist of three parts: header, claims, and signature.  To properly constru
 ```json
 {
 "typ": "JWT",
-"alg": "HS256|HS384|HS512"
+"alg": "HS256|HS384|HS512|RS256|RS384|RS512"
 }
 ```
-See progress on https://github.com/BTBurke/caddy-jwt/issues/3 if you're interested in public key signing algorithms.
 
 ##### Claims
 If you want to limit the validity of your tokens to a certain time period, use the "exp" field to declare the expiry time of your token.  This time should be a Unix timestamp in integer format.

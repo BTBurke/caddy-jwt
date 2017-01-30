@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"crypto/rsa"
 	"fmt"
 	"net/http"
 	"os"
@@ -8,9 +9,17 @@ import (
 	"strings"
 
 	"bytes"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
+
+type JWTAuthBackend struct {
+	HMACSecret   []byte
+	RSAPublicKey *rsa.PublicKey
+}
+
+var authBackendInstance *JWTAuthBackend = nil
 
 func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 	// if the request path is any of the configured paths, validate JWT
@@ -30,7 +39,10 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		if err != nil {
 			return handleUnauthorized(w, r, p), nil
 		}
-		vClaims := vToken.Claims.(jwt.MapClaims)
+		vClaims, err := Flatten(vToken.Claims.(jwt.MapClaims), "", DotStyle)
+		if err != nil {
+			return handleUnauthorized(w, r, p), nil
+		}
 
 		// If token contains rules with allow or deny, evaluate
 		if len(p.AccessRules) > 0 {
@@ -119,6 +131,16 @@ func ExtractToken(r *http.Request) (string, error) {
 	return "", fmt.Errorf("no token found")
 }
 
+func InitJWTAuthBackend() *JWTAuthBackend {
+	if authBackendInstance == nil {
+		authBackendInstance = &JWTAuthBackend{
+			HMACSecret:   lookupSecret(),
+			RSAPublicKey: getPublicKey(),
+		}
+	}
+	return authBackendInstance
+}
+
 // ValidateToken will return a parsed token if it passes validation, or an
 // error if any part of the token fails validation.  Possible errors include
 // malformed tokens, unknown/unspecified signing algorithms, missing secret key,
@@ -129,34 +151,63 @@ func ValidateToken(uToken string) (*jwt.Token, error) {
 		return nil, fmt.Errorf("Token length is zero")
 	}
 
-	token, err := jwt.Parse(uToken, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", t.Header["alg"])
-		}
-		secret, err := lookupSecret()
+	authBackend := InitJWTAuthBackend()
+
+	if authBackend.HMACSecret != nil {
+		token, err := jwt.Parse(uToken, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("HMAC: Unexpected signing method: %v", t.Header["alg"])
+			}
+			return authBackend.HMACSecret, nil
+		})
+
 		if err != nil {
 			return nil, err
 		}
-		return secret, nil
-	})
 
-	// if token is malformed or invalid, err can be inspected to get more information
-	// about which validation part failed
-	if err != nil {
-		return nil, err
+		return token, nil
 	}
+	if authBackend.RSAPublicKey != nil {
+		token, err := jwt.Parse(uToken, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, fmt.Errorf("RSA: Unexpected signing method: %v", t.Header["alg"])
+			}
+			return authBackend.RSAPublicKey, nil
+		})
 
-	return token, nil
+		// if token is malformed or invalid, err can be inspected to get more information
+		// about which validation part failed
+		if err != nil {
+			return nil, err
+		}
+
+		return token, nil
+	}
+	// if token not valid, err can be inspected to get more information about which
+	// part failed validation
+	return nil, fmt.Errorf("JWT_SECRET nor JWT_PUBLIC_KEY is set")
 }
 
 // JWT signing token must be set as environment variable JWT_SECRET and not
 // be the empty string
-func lookupSecret() ([]byte, error) {
+func lookupSecret() []byte {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		return nil, fmt.Errorf("JWT_SECRET not set")
+		return nil
 	}
-	return []byte(secret), nil
+	return []byte(secret)
+}
+
+func getPublicKey() *rsa.PublicKey {
+	pem := os.Getenv("JWT_PUBLIC_KEY")
+	if pem == "" {
+		return nil
+	}
+	rsaPub, err := jwt.ParseRSAPublicKeyFromPEM([]byte(pem))
+	if err != nil {
+		panic(err)
+	}
+	return rsaPub
 }
 
 // handleUnauthorized checks, which action should be performed if access was denied.

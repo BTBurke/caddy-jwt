@@ -16,8 +16,31 @@ import (
 )
 
 const (
-	validToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
+	validToken     = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
 	malformedToken = "loremIpsum"
+	rsaPublicKey   = `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCx8HkixKMKDI43bBcL5TxhNsTy
+4qbZW+LMzSazcFmICITg/c3BbDyCS88VO6hqPhfLzQsNbaZeKKqxQfVudhYQI2cX
+9ID2IuYxw3M8vazffhiJjgKVXnNaGdUCnKVFKVPxklwVztxVE8tYmfN0cvAeNafc
+KPMSbZEZEqQeFfkafQIDAQAB
+-----END PUBLIC KEY-----
+`
+	rsaPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
+MIICXgIBAAKBgQCx8HkixKMKDI43bBcL5TxhNsTy4qbZW+LMzSazcFmICITg/c3B
+bDyCS88VO6hqPhfLzQsNbaZeKKqxQfVudhYQI2cX9ID2IuYxw3M8vazffhiJjgKV
+XnNaGdUCnKVFKVPxklwVztxVE8tYmfN0cvAeNafcKPMSbZEZEqQeFfkafQIDAQAB
+AoGBAI1NRDTK6BnTzJ/QUyDcIi2ku5ORTyPuZtVx2FjIUCDJexPcGKeP1yE1KDZZ
+UK1Fr8nkgvFf8Kx3KM1obokQdwV3QXTtENIaLoq3OTzmDihGmvrSqCvfWPQNF/Wn
+qxcMedY3z/u4RqHW5Gects0K6RDWNua8QV0W6jazRFzcfcKhAkEA6tSQiOmjUUQz
++IKNr0BU+r127uNuly9t5w6Umqd4i9eYzRZRaNeokFCn7qOr/D70hMJynHLYr3sZ
+KtBQUsFf5QJBAMH6+THDtPfFiB8Qtz67ucQq2DwWWUjCVFLd3rqMiRqZ7mJNEv+C
+YOusKbw54UHCD5bgORYC5HXVg2hzBYj2trkCQCA/oLmsnCkE3L4774kppIHqkvKr
+ePx6HvWkIvQ6G2vY57sCXZuwQg3PhcBX6b5yRtIUgfjKLMeseABRKzayJ6ECQQCe
+KcCdrvETRWBj1AFViUNCi5ycAazzAmA24OkGOihgJDqWtDlVVD0qa8nry1W7hDup
+zVE+fUVCPsFSnNZagq8hAkEA4tOFUKxqEDg+QXaJbFXiUTj9BMDUlEGTqGS/becS
+99L5HGoSkzGQazoqD6bA6ZQwF+gUN1LweweK7LLcnZsVFg==
+-----END RSA PRIVATE KEY-----
+`
 )
 
 func TestCaddyJwt(t *testing.T) {
@@ -48,24 +71,49 @@ func genToken(secret string, claims map[string]interface{}) string {
 }
 
 var _ = Describe("JWTAuth", func() {
+	BeforeEach(func() {
+		authBackendInstance = nil
+	})
+
 	Describe("Use environment to get secrets", func() {
 
 		It("should get the JWT secret from the environment JWT_SECRET", func() {
 			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 				Fail("Unexpected error setting JWT_SECRET")
 			}
-			secret, err := lookupSecret()
+			secret := lookupSecret()
 			Expect(secret).To(Equal([]byte("secret")))
-			Expect(err).To(BeNil())
 		})
 
 		It("should return an error JWT_SECRET not set", func() {
 			if err := os.Setenv("JWT_SECRET", ""); err != nil {
 				Fail("Unexpected error setting JWT_SECRET")
 			}
-			secret, err := lookupSecret()
+			secret := lookupSecret()
 			Expect(secret).To(BeNil())
-			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Describe("Validate flatten map function", func() {
+
+		listMap := map[string]interface{}{"context": map[string]interface{}{"user": map[string]interface{}{"roles": []string{"admin", "user"}}}}
+		myMap := map[string]interface{}{"context": map[string]interface{}{"user": map[string]interface{}{"username": "foobar"}}}
+
+		It("Should flatten map with dots", func() {
+			result, err := Flatten(myMap, "", DotStyle)
+			if err != nil {
+				panic(err)
+			}
+			expectedMap := map[string]interface{}{"context.user.username": "foobar"}
+			Expect(result).To(Equal(expectedMap))
+		})
+		It("Should flatten map and leave slices as is", func() {
+			result, err := Flatten(listMap, "", DotStyle)
+			if err != nil {
+				panic(err)
+			}
+			expectedMap := map[string]interface{}{"context.user.roles": []string{"admin", "user"}}
+			Expect(result).To(Equal(expectedMap))
 		})
 	})
 
@@ -106,6 +154,29 @@ var _ = Describe("JWTAuth", func() {
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 			sToken, err := token.SignedString([]byte("secret"))
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
+			}
+
+			vToken, err := ValidateToken(sToken)
+
+			Expect(err).To(BeNil())
+			Expect(vToken.Valid).To(Equal(true))
+		})
+
+		It("should validate a correctly formed RSA token", func() {
+			os.Unsetenv("JWT_SECRET")
+			if err := os.Setenv("JWT_PUBLIC_KEY", rsaPublicKey); err != nil {
+				Fail("unexpected error setting JWT_PUBLIC_KEY")
+			}
+			token := jwt.New(jwt.SigningMethodRS256)
+			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
+
+			secret, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(rsaPrivateKey))
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing private key: %s", err))
+			}
+			sToken, err := token.SignedString(secret)
 			if err != nil {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
@@ -305,7 +376,6 @@ var _ = Describe("JWTAuth", func() {
 			}
 
 		})
-
 		Describe("Function correctly as an authorization middleware for complex access rules", func() {
 
 			tokenUser := genToken("secret", map[string]interface{}{"user": "test", "role": "member"})
@@ -489,7 +559,6 @@ var _ = Describe("JWTAuth", func() {
 				Expect(result).To(Equal(http.StatusUnauthorized))
 			})
 		})
-
 	})
 
 })
