@@ -21,7 +21,7 @@ jwt [path2]
 
 ### Advanced Syntax
 
-You can optionally use claim information to further control access to your routes.  In a `jwt` block you can specify rules to allow or deny access based on the value of a claim. 
+You can optionally use claim information to further control access to your routes.  In a `jwt` block you can specify rules to allow or deny access based on the value of a claim.
 If the claim is a json array of strings, the allow and deny directives will check if the array contains the specified string value.  An allow or deny rule will be valid if any value in the array is a match.
 
 ```
@@ -64,6 +64,7 @@ There are three ways to pass the token for validation: (1) in the `Authorization
 JWTs consist of three parts: header, claims, and signature.  To properly construct a JWT, it's recommended that you use a JWT library appropriate for your language.  At a minimum, this authorization middleware expects the following fields to be present:
 
 ##### Header
+
 ```json
 {
 "typ": "JWT",
@@ -72,6 +73,7 @@ JWTs consist of three parts: header, claims, and signature.  To properly constru
 ```
 
 ##### Claims
+
 If you want to limit the validity of your tokens to a certain time period, use the "exp" field to declare the expiry time of your token.  This time should be a Unix timestamp in integer format.
 ```json
 {
@@ -85,10 +87,13 @@ You can of course add extra claims in the claim section.  Once the token is vali
 
 ```json
 {
-"user": "test",
-"role": "admin",
-"logins": 10,
-"groups": ["user", "operator"]
+  "user": "test",
+  "role": "admin",
+  "logins": 10,
+  "groups": ["user", "operator"],
+  "data": {
+    "payload": "something"
+  }
 }
 ```
 
@@ -99,9 +104,10 @@ Token-Claim-User: test
 Token-Claim-Role: admin
 Token-Claim-Logins: 10
 Token-Claim-Groups: user,operator
+Token-Claim-Data.Payload: something
 ```
 
-Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.
+Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.  Nested JSON objects will be flattened.  In the example above, you can see that the nested `payload` field is flattened to `data.payload`.
 
 ### Caveats
 
