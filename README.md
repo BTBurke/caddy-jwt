@@ -19,7 +19,7 @@ jwt [path1]
 jwt [path2]
 ```
 
-> **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`(HMAC) *or* `JWT_PUBLIC_KEY`(RSA).  Otherwise, your tokens will always silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated.
+> **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`(HMAC) *or* `JWT_PUBLIC_KEY`(RSA).  Otherwise, your tokens will silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated.
 
 ### Advanced Syntax
 
