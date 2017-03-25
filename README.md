@@ -1,5 +1,3 @@
-[![CircleCI](https://circleci.com/gh/BTBurke/caddy-jwt/tree/master.svg?style=svg)](https://circleci.com/gh/BTBurke/caddy-jwt/tree/master)
-
 ## JWT
 
 **Authorization Middleware for Caddy**
