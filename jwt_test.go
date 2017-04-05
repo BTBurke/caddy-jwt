@@ -309,6 +309,31 @@ var _ = Describe("JWTAuth", func() {
 			Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 		}
 
+		It("return 401 when no authorization header and the path is protected", func() {
+			req, err := http.NewRequest("GET", "/testing", nil)
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusUnauthorized))
+		})
+
+		It("return 401 when no token and the path is protected", func() {
+			req, err := http.NewRequest("GET", "/testing", nil)
+			req.Header.Set("Authorization", strings.Join([]string{"Basic", "QWxhZGRpbjpvcGVuIHNlc2FtZQ=="}, " "))
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusUnauthorized))
+		})
+
 		It("return 401 when the token is not valid and the path is protected", func() {
 			req, err := http.NewRequest("GET", "/testing", nil)
 			req.Header.Set("Authorization", strings.Join([]string{"Bearer", invalidToken}, " "))
@@ -429,7 +454,7 @@ var _ = Describe("JWTAuth", func() {
 					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
 				}
 
-				Expect(result).To(Equal(http.StatusUnauthorized))
+				Expect(result).To(Equal(http.StatusForbidden))
 			})
 			It("should correctly apply rules in order with multiple ALLOWs", func() {
 				// tests situation where user is denied based on wrong role
@@ -487,7 +512,7 @@ var _ = Describe("JWTAuth", func() {
 					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
 				}
 
-				Expect(result).To(Equal(http.StatusUnauthorized))
+				Expect(result).To(Equal(http.StatusForbidden))
 			})
 
 			It("should allow based on no match to DENY", func() {
@@ -556,7 +581,7 @@ var _ = Describe("JWTAuth", func() {
 					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
 				}
 
-				Expect(result).To(Equal(http.StatusUnauthorized))
+				Expect(result).To(Equal(http.StatusForbidden))
 			})
 		})
 	})

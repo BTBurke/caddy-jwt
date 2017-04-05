@@ -67,7 +67,7 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 				}
 			}
 			if !ok {
-				return handleUnauthorized(w, r, p), nil
+				return handleForbidden(w, r, p), nil
 			}
 		}
 
@@ -220,6 +220,18 @@ func handleUnauthorized(w http.ResponseWriter, r *http.Request, rule Rule) int {
 		return http.StatusSeeOther
 	}
 	return http.StatusUnauthorized
+}
+
+// handleForbidden checks, which action should be performed if access was denied.
+// It returns the status code and writes the Location header in case of a redirect.
+// Possible caddy variables in the location value will be substituted.
+func handleForbidden(w http.ResponseWriter, r *http.Request, rule Rule) int {
+	if rule.Redirect != "" {
+		replacer := httpserver.NewReplacer(r, nil, "")
+		http.Redirect(w, r, replacer.Replace(rule.Redirect), http.StatusSeeOther)
+		return http.StatusSeeOther
+	}
+	return http.StatusForbidden
 }
 
 // contains checks weather list is a slice ans containts the
