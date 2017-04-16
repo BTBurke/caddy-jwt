@@ -111,6 +111,14 @@ Token-Claim-Data.Payload: something
 
 Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.  Nested JSON objects will be flattened.  In the example above, you can see that the nested `payload` field is flattened to `data.payload`.
 
+### Possible Return Status Codes
+
+| Code | Reason |
+| ---- | ------ |
+| 401 | Unauthorized - no token, token failed validation, token is expired |
+| 403 | Forbidden - Token is valid but denied because of an ALLOW or DENY rule |
+| 303 | A 401 or 403 was returned and the redirect is enabled.  This takes precedence over a 401 or 403 status. |
+
 ### Caveats
 
 JWT validation depends only on validating the correct signature and that the token is unexpired.  You can also set the `nbf` field to prevent validation before a certain timestamp.  Other fields in the specification, such as `aud`, `iss`, `sub`, `iat`, and `jti` will not affect the validation step.
