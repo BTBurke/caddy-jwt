@@ -285,6 +285,7 @@ var _ = Describe("JWTAuth", func() {
 		rw := JWTAuth{
 			Next:  httpserver.HandlerFunc(passThruHandler),
 			Rules: []Rule{Rule{Path: "/testing"}},
+			Realm: "testing.com",
 		}
 
 		if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
@@ -319,6 +320,7 @@ var _ = Describe("JWTAuth", func() {
 			}
 
 			Expect(result).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
 		})
 
 		It("return 401 when no token and the path is protected", func() {
@@ -332,6 +334,7 @@ var _ = Describe("JWTAuth", func() {
 			}
 
 			Expect(result).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
 		})
 
 		It("return 401 when the token is not valid and the path is protected", func() {
@@ -345,6 +348,7 @@ var _ = Describe("JWTAuth", func() {
 			}
 
 			Expect(result).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
 		})
 
 		It("allow valid requests to continue to next handler", func() {
@@ -443,6 +447,7 @@ var _ = Describe("JWTAuth", func() {
 				rw := JWTAuth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleAllowUser},
+					Realm: "testing.com",
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -455,6 +460,7 @@ var _ = Describe("JWTAuth", func() {
 				}
 
 				Expect(result).To(Equal(http.StatusForbidden))
+				Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"insufficient_scope\""))
 			})
 			It("should correctly apply rules in order with multiple ALLOWs", func() {
 				// tests situation where user is denied based on wrong role
@@ -501,6 +507,7 @@ var _ = Describe("JWTAuth", func() {
 				rw := JWTAuth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleDenyRole},
+					Realm: "testing.com",
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -513,6 +520,7 @@ var _ = Describe("JWTAuth", func() {
 				}
 
 				Expect(result).To(Equal(http.StatusForbidden))
+				Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"insufficient_scope\""))
 			})
 
 			It("should allow based on no match to DENY", func() {
@@ -570,6 +578,7 @@ var _ = Describe("JWTAuth", func() {
 				rw := JWTAuth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleAllowUser},
+					Realm: "testing.com",
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -582,6 +591,7 @@ var _ = Describe("JWTAuth", func() {
 				}
 
 				Expect(result).To(Equal(http.StatusForbidden))
+				Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"insufficient_scope\""))
 			})
 		})
 	})

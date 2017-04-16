@@ -15,6 +15,7 @@ const (
 type JWTAuth struct {
 	Rules []Rule
 	Next  httpserver.Handler
+	Realm string
 }
 
 type Rule struct {
@@ -47,10 +48,13 @@ func Setup(c *caddy.Controller) error {
 		return nil
 	})
 
+	host := httpserver.GetConfig(c).Addr.Host
+
 	httpserver.GetConfig(c).AddMiddleware(func(next httpserver.Handler) httpserver.Handler {
 		return &JWTAuth{
 			Rules: rules,
 			Next:  next,
+			Realm: host,
 		}
 	})
 

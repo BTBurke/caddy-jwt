@@ -31,17 +31,17 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		// Path matches, look for unvalidated token
 		uToken, err := ExtractToken(r)
 		if err != nil {
-			return handleUnauthorized(w, r, p), nil
+			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
 
 		// Validate token
 		vToken, err := ValidateToken(uToken)
 		if err != nil {
-			return handleUnauthorized(w, r, p), nil
+			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
 		vClaims, err := Flatten(vToken.Claims.(jwt.MapClaims), "", DotStyle)
 		if err != nil {
-			return handleUnauthorized(w, r, p), nil
+			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
 
 		// If token contains rules with allow or deny, evaluate
@@ -56,7 +56,7 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 				case DENY:
 					isAuthorized = append(isAuthorized, !ruleMatches)
 				default:
-					return handleUnauthorized(w, r, p), fmt.Errorf("unknown rule type")
+					return handleUnauthorized(w, r, p, h.Realm), fmt.Errorf("unknown rule type")
 				}
 			}
 			// test all flags, if any are true then ok to pass
@@ -67,7 +67,7 @@ func (h JWTAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 				}
 			}
 			if !ok {
-				return handleForbidden(w, r, p), nil
+				return handleForbidden(w, r, p, h.Realm), nil
 			}
 		}
 
@@ -213,24 +213,27 @@ func getPublicKey() *rsa.PublicKey {
 // handleUnauthorized checks, which action should be performed if access was denied.
 // It returns the status code and writes the Location header in case of a redirect.
 // Possible caddy variables in the location value will be substituted.
-func handleUnauthorized(w http.ResponseWriter, r *http.Request, rule Rule) int {
+func handleUnauthorized(w http.ResponseWriter, r *http.Request, rule Rule, realm string) int {
 	if rule.Redirect != "" {
 		replacer := httpserver.NewReplacer(r, nil, "")
 		http.Redirect(w, r, replacer.Replace(rule.Redirect), http.StatusSeeOther)
 		return http.StatusSeeOther
 	}
+
+	w.Header().Add("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"%s\",error=\"invalid_token\"", realm))
 	return http.StatusUnauthorized
 }
 
 // handleForbidden checks, which action should be performed if access was denied.
 // It returns the status code and writes the Location header in case of a redirect.
 // Possible caddy variables in the location value will be substituted.
-func handleForbidden(w http.ResponseWriter, r *http.Request, rule Rule) int {
+func handleForbidden(w http.ResponseWriter, r *http.Request, rule Rule, realm string) int {
 	if rule.Redirect != "" {
 		replacer := httpserver.NewReplacer(r, nil, "")
 		http.Redirect(w, r, replacer.Replace(rule.Redirect), http.StatusSeeOther)
 		return http.StatusSeeOther
 	}
+	w.Header().Add("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"%s\",error=\"insufficient_scope\"", realm))
 	return http.StatusForbidden
 }
 
