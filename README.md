@@ -1,5 +1,7 @@
 ## JWT
 
+[![Build Status](https://travis-ci.org/BTBurke/caddy-jwt.svg?branch=master)](https://travis-ci.org/BTBurke/caddy-jwt)
+
 **Authorization Middleware for Caddy**
 
 This middleware implements an authorization layer for [Caddy](https://caddyserver.com) based on JSON Web Tokens (JWT).  You can learn more about using JWT in your application at [jwt.io](https://jwt.io).
