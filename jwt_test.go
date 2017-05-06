@@ -291,7 +291,7 @@ var _ = Describe("JWTAuth", func() {
 
 			rec := httptest.NewRecorder()
 			rw := JWTAuth{
-				Rules: []Rule{{Path: "/testing", Redirect: "/login?backTo={uri}"}},
+				Rules: []Rule{{Path: "/testing", Redirect: "/login?backTo={rewrite_uri}"}},
 			}
 			result, err := rw.ServeHTTP(rec, req)
 			if err != nil {
