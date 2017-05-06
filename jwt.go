@@ -15,6 +15,8 @@ import (
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
+// JWTAuthBackend represents a backend interface that retrieves secret key material
+// to validate tokens
 type JWTAuthBackend interface {
 	GetHMACSecret() (b []byte)
 	GetRSAPublicKey() (r *rsa.PublicKey)
