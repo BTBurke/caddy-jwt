@@ -12,18 +12,24 @@ const (
 	DENY
 )
 
+// JWTAuth represents configuration information for the middleware
 type JWTAuth struct {
 	Rules []Rule
 	Next  httpserver.Handler
 	Realm string
 }
 
+// Rule represents the configuration for a site
 type Rule struct {
-	Path        string
-	AccessRules []AccessRule
-	Redirect    string
+	Path          string
+	ExceptedPaths []string
+	AccessRules   []AccessRule
+	Redirect      string
+	AllowRoot     bool
 }
 
+// AccessRule represents a single ALLOW/DENY rule based on the value of a claim in
+// a validated token
 type AccessRule struct {
 	Authorize int
 	Claim     string
@@ -68,7 +74,6 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 		jwt /anotherpath
 		jwt {
 			path /hello
-			path /anotherpath
 		}
 	*/
 	var rules []Rule
@@ -95,6 +100,17 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 						// we are expecting only one value.
 						return nil, c.ArgErr()
 					}
+				case "except":
+					if !c.NextArg() {
+						return nil, c.ArgErr()
+					}
+					r.ExceptedPaths = append(r.ExceptedPaths, c.Val())
+					if c.NextArg() {
+						// except only allows one path per declaration
+						return nil, c.ArgErr()
+					}
+				case "allowroot":
+					r.AllowRoot = true
 				case "allow":
 					args1 := c.RemainingArgs()
 					if len(args1) != 2 {

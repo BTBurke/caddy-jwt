@@ -71,9 +71,6 @@ func genToken(secret string, claims map[string]interface{}) string {
 }
 
 var _ = Describe("JWTAuth", func() {
-	BeforeEach(func() {
-		authBackendInstance = nil
-	})
 
 	Describe("Use environment to get secrets", func() {
 
@@ -81,7 +78,8 @@ var _ = Describe("JWTAuth", func() {
 			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 				Fail("Unexpected error setting JWT_SECRET")
 			}
-			secret := lookupSecret()
+			b := backend{}
+			secret := b.GetHMACSecret()
 			Expect(secret).To(Equal([]byte("secret")))
 		})
 
@@ -89,8 +87,23 @@ var _ = Describe("JWTAuth", func() {
 			if err := os.Setenv("JWT_SECRET", ""); err != nil {
 				Fail("Unexpected error setting JWT_SECRET")
 			}
-			secret := lookupSecret()
+			b := backend{}
+			secret := b.GetHMACSecret()
 			Expect(secret).To(BeNil())
+		})
+
+		It("should detect invalid configurations of auth backends", func() {
+			os.Unsetenv("JWT_PUBLIC_KEY")
+			os.Unsetenv("JWT_SECRET")
+
+			b := backend{}
+			v := b.IsConfigValid()
+			Expect(v).To(BeFalse())
+
+			os.Setenv("JWT_SECRET", "secret")
+			os.Setenv("JWT_PUBLIC_KEY", rsaPublicKey)
+			v2 := b.IsConfigValid()
+			Expect(v2).To(BeFalse())
 		})
 	})
 
@@ -151,14 +164,15 @@ var _ = Describe("JWTAuth", func() {
 			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 				Fail("unexpected error setting JWT_SECRET")
 			}
+			os.Unsetenv("JWT_PUBLIC_KEY")
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 			sToken, err := token.SignedString([]byte("secret"))
 			if err != nil {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
-
-			vToken, err := ValidateToken(sToken)
+			b := backend{}
+			vToken, err := ValidateToken(sToken, b)
 
 			Expect(err).To(BeNil())
 			Expect(vToken.Valid).To(Equal(true))
@@ -181,7 +195,8 @@ var _ = Describe("JWTAuth", func() {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
 
-			vToken, err := ValidateToken(sToken)
+			b := backend{}
+			vToken, err := ValidateToken(sToken, b)
 
 			Expect(err).To(BeNil())
 			Expect(vToken.Valid).To(Equal(true))
@@ -191,6 +206,7 @@ var _ = Describe("JWTAuth", func() {
 			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 				Fail("unexpected error setting JWT_SECRET")
 			}
+			os.Unsetenv("JWT_PUBLIC_KEY")
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 			sToken, err := token.SignedString([]byte("notsecret"))
@@ -198,7 +214,8 @@ var _ = Describe("JWTAuth", func() {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
 
-			vToken, err := ValidateToken(sToken)
+			b := backend{}
+			vToken, err := ValidateToken(sToken, b)
 
 			Expect(err).To(HaveOccurred())
 			Expect(vToken).To(BeNil())
@@ -206,7 +223,8 @@ var _ = Describe("JWTAuth", func() {
 
 		It("should not validate a malformed token", func() {
 
-			vToken, err := ValidateToken(malformedToken)
+			b := backend{}
+			vToken, err := ValidateToken(malformedToken, b)
 
 			Expect(err).To(HaveOccurred())
 			Expect(vToken).To(BeNil())
@@ -216,6 +234,7 @@ var _ = Describe("JWTAuth", func() {
 			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 				Fail("unexpected error setting JWT_SECRET")
 			}
+			os.Unsetenv("JWT_PUBLIC_KEY")
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * -1).Unix()
 			sToken, err := token.SignedString([]byte("secret"))
@@ -223,7 +242,8 @@ var _ = Describe("JWTAuth", func() {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
 
-			vToken, err := ValidateToken(sToken)
+			b := backend{}
+			vToken, err := ValidateToken(sToken, b)
 
 			Expect(err).To(HaveOccurred())
 			Expect(vToken).To(BeNil())
@@ -233,6 +253,7 @@ var _ = Describe("JWTAuth", func() {
 			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 				Fail("unexpected error setting JWT_SECRET")
 			}
+			os.Unsetenv("JWT_PUBLIC_KEY")
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Header["alg"] = "none"
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
@@ -241,7 +262,8 @@ var _ = Describe("JWTAuth", func() {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
 
-			vToken, err := ValidateToken(sToken)
+			b := backend{}
+			vToken, err := ValidateToken(sToken, b)
 
 			Expect(err).To(HaveOccurred())
 			Expect(vToken).To(BeNil())
@@ -283,8 +305,10 @@ var _ = Describe("JWTAuth", func() {
 	})
 	Describe("Function correctly as an authorization middleware", func() {
 		rw := JWTAuth{
-			Next:  httpserver.HandlerFunc(passThruHandler),
-			Rules: []Rule{Rule{Path: "/testing"}},
+			Next: httpserver.HandlerFunc(passThruHandler),
+			Rules: []Rule{
+				Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}},
+			},
 			Realm: "testing.com",
 		}
 
@@ -366,6 +390,18 @@ var _ = Describe("JWTAuth", func() {
 
 		It("allow unprotected requests to continue to next handler", func() {
 			req, err := http.NewRequest("GET", "/unprotected", nil)
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusOK))
+		})
+
+		It("allow excepted path requests to continue to next handler", func() {
+			req, err := http.NewRequest("GET", "/testing/excepted", nil)
 
 			rec := httptest.NewRecorder()
 			result, err := rw.ServeHTTP(rec, req)

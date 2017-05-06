@@ -111,6 +111,29 @@ Token-Claim-Data.Payload: something
 
 Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.  Nested JSON objects will be flattened.  In the example above, you can see that the nested `payload` field is flattened to `data.payload`.
 
+### Allowing Public Access to Certain Paths
+
+In some cases, you may want to allow public access to a particular path without a valid token.  For example, you may want to protect all your routes except access to the `/login` path.  You can do that with the `except` directive.
+
+```
+jwt {
+  path /
+  except /login
+}
+```
+
+Every path that begins with `/login` will be excepted from the JWT token requirement.  All other paths will be protected.  In the case that you set your path to the root as in the example above, you also might want to allow access to the so-called naked or root domain while protecting everything else.  You can use the directive `allowroot` which will allow access to the naked domain.  For example, if you have the following config block:
+
+```
+jwt {
+  path /
+  except /login
+  allowroot
+}
+```
+
+Requests to `https://example.com/login` and `https://example.com/` will both be allowed without a valid token.  Any other path will require a valid token.
+
 ### Possible Return Status Codes
 
 | Code | Reason |
