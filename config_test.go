@@ -62,6 +62,18 @@ var _ = Describe("JWTAuth Config", func() {
 					path /path1
 					path /path2
 				}`, true, nil},
+				{`jwt {
+					path /
+					except /login
+					except /test
+					allowroot
+				}`, false, []Rule{
+					Rule{
+						Path:          "/",
+						ExceptedPaths: []string{"/login", "/test"},
+						AllowRoot:     true,
+					},
+				}},
 			}
 			for _, test := range tests {
 				c := caddy.NewTestController("http", test.input)
@@ -76,6 +88,8 @@ var _ = Describe("JWTAuth Config", func() {
 					Expect(rule.Path).To(Equal(actualRule.Path))
 					Expect(rule.Redirect).To(Equal(actualRule.Redirect))
 					Expect(rule.AccessRules).To(Equal(actualRule.AccessRules))
+					Expect(rule.ExceptedPaths).To(Equal(actualRule.ExceptedPaths))
+					Expect(rule.AllowRoot).To(Equal(actualRule.AllowRoot))
 				}
 
 			}
