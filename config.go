@@ -7,13 +7,30 @@ import (
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
+// RuleType distinguishes between ALLOW and DENY rules
+type RuleType int
+
 const (
-	ALLOW = iota
+	// ALLOW represents a rule that should allow access based on claim value
+	ALLOW RuleType = iota
+
+	// DENY represents a rule that should deny access based on claim value
 	DENY
 )
 
-// JWTAuth represents configuration information for the middleware
-type JWTAuth struct {
+// EncryptionType distinguishes between RSA and HMAC key material when stored in a file
+type EncryptionType int
+
+const (
+	// RSA is used to specify a file that contains a PEM-encoded public key
+	RSA EncryptionType = 1 << iota
+
+	// HMAC is used to specify a file that contains a HMAC-SHA secret
+	HMAC
+)
+
+// Auth represents configuration information for the middleware
+type Auth struct {
 	Rules []Rule
 	Next  httpserver.Handler
 	Realm string
@@ -26,12 +43,14 @@ type Rule struct {
 	AccessRules   []AccessRule
 	Redirect      string
 	AllowRoot     bool
+	KeyFile       string
+	KeyFileType   EncryptionType
 }
 
 // AccessRule represents a single ALLOW/DENY rule based on the value of a claim in
 // a validated token
 type AccessRule struct {
-	Authorize int
+	Authorize RuleType
 	Claim     string
 	Value     string
 }
@@ -43,6 +62,7 @@ func init() {
 	})
 }
 
+// Setup is called by Caddy to parse the config block
 func Setup(c *caddy.Controller) error {
 	rules, err := parse(c)
 	if err != nil {
@@ -57,7 +77,7 @@ func Setup(c *caddy.Controller) error {
 	host := httpserver.GetConfig(c).Addr.Host
 
 	httpserver.GetConfig(c).AddMiddleware(func(next httpserver.Handler) httpserver.Handler {
-		return &JWTAuth{
+		return &Auth{
 			Rules: rules,
 			Next:  next,
 			Realm: host,
@@ -129,6 +149,20 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 						return nil, c.ArgErr()
 					}
 					r.Redirect = args1[0]
+				case "publickey":
+					args1 := c.RemainingArgs()
+					if len(args1) != 1 || r.KeyFileType != 0 {
+						return nil, c.ArgErr()
+					}
+					r.KeyFile = args1[0]
+					r.KeyFileType = RSA
+				case "secret":
+					args1 := c.RemainingArgs()
+					if len(args1) != 1 || r.KeyFileType != 0 {
+						return nil, c.ArgErr()
+					}
+					r.KeyFile = args1[0]
+					r.KeyFileType = HMAC
 				}
 			}
 			rules = append(rules, r)

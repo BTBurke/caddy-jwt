@@ -74,6 +74,31 @@ var _ = Describe("JWTAuth Config", func() {
 						AllowRoot:     true,
 					},
 				}},
+				{`jwt {
+					path /
+					publickey /test/test.pem
+				}`, false, []Rule{
+					Rule{
+						Path:        "/",
+						KeyFile:     "/test/test.pem",
+						KeyFileType: RSA,
+					},
+				}},
+				{`jwt {
+					path /
+					secret /test/test.secret
+				}`, false, []Rule{
+					Rule{
+						Path:        "/",
+						KeyFile:     "/test/test.secret",
+						KeyFileType: HMAC,
+					},
+				}},
+				{`jwt {
+					path /
+					publickey /test/test.pem
+					secret /test/test.secret
+				}`, true, nil},
 			}
 			for _, test := range tests {
 				c := caddy.NewTestController("http", test.input)
@@ -90,6 +115,8 @@ var _ = Describe("JWTAuth Config", func() {
 					Expect(rule.AccessRules).To(Equal(actualRule.AccessRules))
 					Expect(rule.ExceptedPaths).To(Equal(actualRule.ExceptedPaths))
 					Expect(rule.AllowRoot).To(Equal(actualRule.AllowRoot))
+					Expect(rule.KeyFile).To(Equal(actualRule.KeyFile))
+					Expect(rule.KeyFileType).To(Equal(actualRule.KeyFileType))
 				}
 
 			}

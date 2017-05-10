@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"io/ioutil"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 	. "github.com/onsi/ginkgo"
@@ -70,7 +72,7 @@ func genToken(secret string, claims map[string]interface{}) string {
 	return validToken
 }
 
-var _ = Describe("JWTAuth", func() {
+var _ = Describe("Auth", func() {
 
 	Describe("Use environment to get secrets", func() {
 
@@ -90,6 +92,78 @@ var _ = Describe("JWTAuth", func() {
 			b := backend{}
 			secret := b.GetHMACSecret()
 			Expect(secret).To(BeNil())
+		})
+
+		It("should find RSA key material stored on disk", func() {
+			pemKey, _ := jwt.ParseRSAPublicKeyFromPEM([]byte(rsaPublicKey))
+			keyfile, err := ioutil.TempFile(os.TempDir(), "testkey")
+			if err != nil {
+				Fail("Unexpected error creating temporary key file")
+			}
+			defer os.Remove(keyfile.Name())
+			if _, err := keyfile.Write([]byte(rsaPublicKey)); err != nil {
+				Fail("Unexpected error writing temporary key file")
+			}
+			if err := keyfile.Close(); err != nil {
+				Fail("Unexpected error closing temporary key file")
+			}
+
+			b := backend{
+				current: keycache{
+					KeyFile:     keyfile.Name(),
+					KeyFileType: RSA,
+				},
+				cache: make(map[string]keycache),
+			}
+			rsakey := b.GetRSAPublicKey()
+			Expect(rsakey).To(Equal(pemKey))
+			Expect(b.cache[keyfile.Name()].Key).To(Equal([]byte(rsaPublicKey)))
+			Expect(b.current.KeyFile).To(Equal(keyfile.Name()))
+
+			rsakeyCached := b.GetRSAPublicKey()
+			Expect(rsakeyCached).To(Equal(pemKey))
+		})
+
+		It("should find HMAC key material stored on disk and invalidate cache if file changes", func() {
+			secret1 := []byte("secret1")
+			secret2 := []byte("secret2")
+
+			keyfile, err := ioutil.TempFile(os.TempDir(), "testkey")
+			if err != nil {
+				Fail("Unexpected error creating temporary key file")
+			}
+			defer os.Remove(keyfile.Name())
+
+			if _, err := keyfile.Write(secret1); err != nil {
+				Fail("Unexpected error writing temporary key file")
+			}
+			if err := keyfile.Close(); err != nil {
+				Fail("Unexpected error closing temporary key file")
+			}
+
+			b := backend{
+				current: keycache{
+					KeyFile:     keyfile.Name(),
+					KeyFileType: HMAC,
+				},
+				cache: make(map[string]keycache),
+			}
+			key1 := b.GetHMACSecret()
+			Expect(key1).To(Equal(secret1))
+			Expect(b.cache[keyfile.Name()].Key).To(Equal(secret1))
+			Expect(b.current.KeyFile).To(Equal(keyfile.Name()))
+
+			key1Cached := b.GetHMACSecret()
+			Expect(key1Cached).To(Equal(secret1))
+
+			// write new value and invalidate cache after short timeout to allow modinfo time to change
+			time.Sleep(20 * time.Millisecond)
+			if err := ioutil.WriteFile(keyfile.Name(), secret2, os.ModePerm); err != nil {
+				Fail("Unexpected error overwriting keyfile in cache invalidation test")
+			}
+			key2 := b.GetHMACSecret()
+			Expect(key2).To(Equal(secret2))
+
 		})
 
 		It("should detect invalid configurations of auth backends", func() {
@@ -274,7 +348,7 @@ var _ = Describe("JWTAuth", func() {
 			req, err := http.NewRequest("GET", "/testing", nil)
 
 			rec := httptest.NewRecorder()
-			rw := JWTAuth{
+			rw := Auth{
 				Rules: []Rule{{Path: "/testing", Redirect: "/login"}},
 			}
 			result, err := rw.ServeHTTP(rec, req)
@@ -290,7 +364,7 @@ var _ = Describe("JWTAuth", func() {
 			req, err := http.NewRequest("GET", "/testing", nil)
 
 			rec := httptest.NewRecorder()
-			rw := JWTAuth{
+			rw := Auth{
 				Rules: []Rule{{Path: "/testing", Redirect: "/login?backTo={rewrite_uri}"}},
 			}
 			result, err := rw.ServeHTTP(rec, req)
@@ -304,7 +378,7 @@ var _ = Describe("JWTAuth", func() {
 		})
 	})
 	Describe("Function correctly as an authorization middleware", func() {
-		rw := JWTAuth{
+		rw := Auth{
 			Next: httpserver.HandlerFunc(passThruHandler),
 			Rules: []Rule{
 				Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}},
@@ -463,7 +537,7 @@ var _ = Describe("JWTAuth", func() {
 			ruleAllowRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleAllowRole, accessRuleAllowUser}}}
 			ruleDenyRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole, accessRuleAllowUser}}}
 			It("should allow authorization based on a specific claim value", func() {
-				rw := JWTAuth{
+				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleAllowUser},
 				}
@@ -480,7 +554,7 @@ var _ = Describe("JWTAuth", func() {
 				Expect(result).To(Equal(http.StatusOK))
 			})
 			It("should deny authorization based on a specific claim value that doesnt match", func() {
-				rw := JWTAuth{
+				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleAllowUser},
 					Realm: "testing.com",
@@ -501,7 +575,7 @@ var _ = Describe("JWTAuth", func() {
 			It("should correctly apply rules in order with multiple ALLOWs", func() {
 				// tests situation where user is denied based on wrong role
 				// but subsequent allow based on username is ok
-				rw := JWTAuth{
+				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: ruleAllowRoleAllowUser,
 				}
@@ -520,7 +594,7 @@ var _ = Describe("JWTAuth", func() {
 			It("should correctly apply rules in order with a DENY then ALLOW", func() {
 				// test situation where default deny for a particular role
 				// subsequent rule based on user ok
-				rw := JWTAuth{
+				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: ruleDenyRoleAllowUser,
 				}
@@ -540,7 +614,7 @@ var _ = Describe("JWTAuth", func() {
 			It("should correctly deny based on specific match", func() {
 				// tests situation where user is denied based on wrong role
 				// but subsequent allow based on username is ok
-				rw := JWTAuth{
+				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleDenyRole},
 					Realm: "testing.com",
@@ -562,7 +636,7 @@ var _ = Describe("JWTAuth", func() {
 			It("should allow based on no match to DENY", func() {
 				// tests situation where user is denied based on wrong role
 				// but subsequent allow based on username is ok
-				rw := JWTAuth{
+				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleDenyRole},
 				}
@@ -594,7 +668,7 @@ var _ = Describe("JWTAuth", func() {
 				},
 			}}
 			It("should allow claim values, which are part of a list", func() {
-				rw := JWTAuth{
+				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleAllowUser},
 				}
@@ -611,7 +685,7 @@ var _ = Describe("JWTAuth", func() {
 				Expect(result).To(Equal(http.StatusOK))
 			})
 			It("should deny claim values, which are part of a list", func() {
-				rw := JWTAuth{
+				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
 					Rules: []Rule{ruleAllowUser},
 					Realm: "testing.com",
