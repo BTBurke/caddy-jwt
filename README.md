@@ -134,6 +134,32 @@ jwt {
 
 Requests to `https://example.com/login` and `https://example.com/` will both be allowed without a valid token.  Any other path will require a valid token.
 
+### Specifying Keys for Use in Validating Tokens
+
+There are two ways to specify key material used in validating tokens.  If you run Caddy in a container or via an init system like Systemd, you can directly specify your keys using the environment variables `JWT_SECRET` for HMAC or `JWT_PUBLIC_KEY` for RSA (PEM-encoded public key).  You cannot use both at the same time because it would open up a known security hole in the JWT specification.  When you run multiple sites, all would have to use the same keys to validate tokens.
+
+When you run multiple sites from one Caddyfile, you can specify the location of a file that contains your PEM-encoded public key or your HMAC secret.  Once again, you cannot use both for the same site because it would cause a security hole.  However, you can use different methods on different sites because the configurations are independent.
+
+For RSA tokens:
+
+```
+jwt {
+  path /
+  publickey /path/to/key.pem
+} 
+```
+
+For HMAC:
+
+```
+jwt {
+  path /
+  secret /path/to/secret.txt
+}
+```
+
+When you store your key material in a file, this middleware will cache the result and use the modification time on the file to determine if the secret has changed since the last request.  This should allow you to rotate your keys or invalidate tokens by writing a new key to the file without worrying about possible file locking problems (although you should still check that your write succeeded before issuing tokens with your new key.)
+
 ### Possible Return Status Codes
 
 | Code | Reason |
