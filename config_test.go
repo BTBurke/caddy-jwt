@@ -99,6 +99,15 @@ var _ = Describe("JWTAuth Config", func() {
 					publickey /test/test.pem
 					secret /test/test.secret
 				}`, true, nil},
+				{`jwt {
+					path /
+					passthrough
+				}`, false, []Rule{
+					Rule{
+						Path:        "/",
+						Passthrough: true,
+					},
+				}},
 			}
 			for _, test := range tests {
 				c := caddy.NewTestController("http", test.input)
