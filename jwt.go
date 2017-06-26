@@ -60,7 +60,7 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		uToken, err := ExtractToken(r)
 		if err != nil {
 			if p.Passthrough {
-				return h.Next.ServeHTTP(w, r)
+				continue
 			}
 			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
