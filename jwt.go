@@ -41,6 +41,13 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 			continue
 		}
 
+		// strip potentially spoofed claims
+		for header, _ := range r.Header {
+			if strings.HasPrefix(header, "Token-Claim-") {
+				r.Header.Del(header)
+			}
+		}
+
 		// Check excepted paths for this rule and allow access without validating any token
 		var isExceptedPath bool
 		for _, e := range p.ExceptedPaths {
