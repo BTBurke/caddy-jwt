@@ -87,6 +87,9 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		// Validate token
 		vToken, err := ValidateToken(uToken, b)
 		if err != nil {
+			if p.Passthrough {
+				continue
+			}
 			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
 		vClaims, err := Flatten(vToken.Claims.(jwt.MapClaims), "", DotStyle)
