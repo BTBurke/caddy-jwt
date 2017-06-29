@@ -704,6 +704,64 @@ var _ = Describe("Auth", func() {
 				Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"insufficient_scope\""))
 			})
 		})
+
+		Describe("Prevent spoofing of claims headers", func() {
+			It("should remove spoofed claims with no JWT provided", func() {
+				rw := Auth{
+					Next:  httpserver.HandlerFunc(passThruHandler),
+					Rules: []Rule{{Path: "/testing", Passthrough: true}},
+				}
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Token-Claim-Spoofed", "spoof")
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+				Expect(rec.Result().Header.Get("Token-Claim-Spoofed")).To(Equal(""))
+			})
+
+			It("should remove spoofed claims with valid token provided", func() {
+				rw := Auth{
+					Next:  httpserver.HandlerFunc(passThruHandler),
+					Rules: []Rule{{Path: "/testing", Passthrough: true}},
+				}
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Token-Claim-Spoofed", "spoof")
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", validToken}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+				Expect(rec.Result().Header.Get("Token-Claim-Spoofed")).To(Equal(""))
+			})
+
+			It("should remove spoofed claims with invalid token provided", func() {
+				rw := Auth{
+					Next:  httpserver.HandlerFunc(passThruHandler),
+					Rules: []Rule{{Path: "/testing", Passthrough: true}},
+				}
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Token-Claim-Spoofed", "spoof")
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", "foo"}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+				Expect(rec.Result().Header.Get("Token-Claim-Spoofed")).To(Equal(""))
+			})
+		})
 	})
 
 })
