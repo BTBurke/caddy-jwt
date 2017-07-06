@@ -41,6 +41,13 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 			continue
 		}
 
+		// strip potentially spoofed claims
+		for header, _ := range r.Header {
+			if strings.HasPrefix(header, "Token-Claim-") {
+				r.Header.Del(header)
+			}
+		}
+
 		// Check excepted paths for this rule and allow access without validating any token
 		var isExceptedPath bool
 		for _, e := range p.ExceptedPaths {
@@ -59,6 +66,9 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		// Path matches, look for unvalidated token
 		uToken, err := ExtractToken(r)
 		if err != nil {
+			if p.Passthrough {
+				continue
+			}
 			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
 
@@ -77,6 +87,9 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		// Validate token
 		vToken, err := ValidateToken(uToken, b)
 		if err != nil {
+			if p.Passthrough {
+				continue
+			}
 			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
 		vClaims, err := Flatten(vToken.Claims.(jwt.MapClaims), "", DotStyle)

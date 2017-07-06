@@ -111,6 +111,8 @@ Token-Claim-Data.Payload: something
 
 Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.  Nested JSON objects will be flattened.  In the example above, you can see that the nested `payload` field is flattened to `data.payload`.
 
+All request headers with the prefix `Token-Claim-` are stripped from the request before being forwarded upstream, so users can't spoof them.
+
 ### Allowing Public Access to Certain Paths
 
 In some cases, you may want to allow public access to a particular path without a valid token.  For example, you may want to protect all your routes except access to the `/login` path.  You can do that with the `except` directive.
@@ -133,6 +135,19 @@ jwt {
 ```
 
 Requests to `https://example.com/login` and `https://example.com/` will both be allowed without a valid token.  Any other path will require a valid token.
+
+### Allowing Public Access Regardless of Token
+
+In some cases, a page should be accessible whether a valid token is present or not. An example might be the Github home page or a public repository, which should be visible even to logged-out users. In those cases, you would want to parse any valid token that might be present and pass the claims through to the application, leaving it to the application to decide whether the user has access. You can use the directive `passthrough` for this:
+
+```
+jwt {
+  path /
+  passthrough
+}
+```
+
+It should be noted that `passthrough` will *always* allow access on the path provided, regardless of whether a token is present or valid, and regardless of `allow`/`deny` directives. The application would be responsible for acting on the parsed claims.
 
 ### Specifying Keys for Use in Validating Tokens
 

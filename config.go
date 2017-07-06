@@ -45,6 +45,7 @@ type Rule struct {
 	AllowRoot     bool
 	KeyFile       string
 	KeyFileType   EncryptionType
+	Passthrough   bool
 }
 
 // AccessRule represents a single ALLOW/DENY rule based on the value of a claim in
@@ -163,6 +164,8 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 					}
 					r.KeyFile = args1[0]
 					r.KeyFileType = HMAC
+				case "passthrough":
+					r.Passthrough = true
 				}
 			}
 			rules = append(rules, r)
