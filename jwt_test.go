@@ -72,6 +72,22 @@ func genToken(secret string, claims map[string]interface{}) string {
 	return validToken
 }
 
+func genRSAToken(privatekey string, claims map[string]interface{}) string {
+	token := jwt.New(jwt.SigningMethodRS256)
+	token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
+
+	for claim, value := range claims {
+		token.Claims.(jwt.MapClaims)[claim] = value
+	}
+	pemKey, _ := jwt.ParseRSAPrivateKeyFromPEM([]byte(privatekey))
+
+	validToken, err := token.SignedString(pemKey)
+	if err != nil {
+		Fail("failed constructing RSA token")
+	}
+	return validToken
+}
+
 var _ = Describe("Auth", func() {
 
 	Describe("Use environment to get secrets", func() {
@@ -389,6 +405,9 @@ var _ = Describe("Auth", func() {
 		if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 			Fail("unexpected error setting JWT_SECRET")
 		}
+		if err := os.Unsetenv("JWT_PUBLIC_KEY"); err != nil {
+			Fail("unexpected error unsetting JWT_PUBLIC_KEY")
+		}
 		token := jwt.New(jwt.SigningMethodHS256)
 		token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 		token.Claims.(jwt.MapClaims)["user"] = "test"
@@ -536,6 +555,13 @@ var _ = Describe("Auth", func() {
 			ruleDenyRole := Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole}}
 			ruleAllowRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleAllowRole, accessRuleAllowUser}}}
 			ruleDenyRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole, accessRuleAllowUser}}}
+			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
+				Fail("Could not set environment secret")
+			}
+			if err := os.Unsetenv("JWT_PUBLIC_KEY"); err != nil {
+				Fail("Could not unset secret")
+			}
+
 			It("should allow authorization based on a specific claim value", func() {
 				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
@@ -667,6 +693,15 @@ var _ = Describe("Auth", func() {
 					Value: "operator",
 				},
 			}}
+			BeforeEach(func() {
+				if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
+					Fail("Could not set environment secret")
+				}
+				if err := os.Setenv("JWT_PUBLIC_KEY", ""); err != nil {
+					Fail("Could not unset secret")
+				}
+			})
+
 			It("should allow claim values, which are part of a list", func() {
 				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
@@ -762,6 +797,97 @@ var _ = Describe("Auth", func() {
 				Expect(rec.Result().Header.Get("Token-Claim-Spoofed")).To(Equal(""))
 			})
 		})
+
+		Describe("Handle multiple keyfiles correctly", func() {
+			It("should allow access when one of the keyfiles matches", func() {
+				key1, err := createKeyFile(rsaPublicKey)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
+				}
+				key2, err := createKeyFile("notvalidkey")
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
+				}
+				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
+
+				rw := Auth{
+					Next:  httpserver.HandlerFunc(passThruHandler),
+					Rules: []Rule{{Path: "/testing", KeyFile: []string{key1, key2}, KeyFileType: RSA}},
+				}
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", token}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+			})
+			It("should allow access when one of the keyfiles matches in any order", func() {
+				key1, err := createKeyFile(rsaPublicKey)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
+				}
+				key2, err := createKeyFile("notvalidkey")
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
+				}
+				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
+
+				rw := Auth{
+					Next:  httpserver.HandlerFunc(passThruHandler),
+					Rules: []Rule{{Path: "/testing", KeyFile: []string{key2, key2, key2, key1}, KeyFileType: RSA}},
+				}
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", token}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+			})
+			It("should deny access when all keyfiles dont validate", func() {
+				key2, err := createKeyFile("notvalidkey")
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
+				}
+				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
+
+				rw := Auth{
+					Next:  httpserver.HandlerFunc(passThruHandler),
+					Rules: []Rule{{Path: "/testing", KeyFile: []string{key2, key2, key2}, KeyFileType: RSA}},
+				}
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", token}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusUnauthorized))
+			})
+		})
 	})
 
 })
+
+func createKeyFile(key string) (string, error) {
+	f, err := ioutil.TempFile("", "jwt")
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.Write([]byte(key)); err != nil {
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+	return f.Name(), nil
+}

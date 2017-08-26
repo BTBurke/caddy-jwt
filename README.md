@@ -175,6 +175,16 @@ jwt {
 
 When you store your key material in a file, this middleware will cache the result and use the modification time on the file to determine if the secret has changed since the last request.  This should allow you to rotate your keys or invalidate tokens by writing a new key to the file without worrying about possible file locking problems (although you should still check that your write succeeded before issuing tokens with your new key.)
 
+If you have multiple public keys or secrets that should be considered valid, use multiple declarations to the keys or secrets in different files.  Authorization will be allowed if any of the keys validate the token.
+
+```
+jwt {
+  path /
+  publickey /path/to/key1.pem
+  publickey /path/to/key2.pem
+}
+```
+
 ### Possible Return Status Codes
 
 | Code | Reason |

@@ -43,9 +43,10 @@ type Rule struct {
 	AccessRules   []AccessRule
 	Redirect      string
 	AllowRoot     bool
-	KeyFile       string
+	KeyFile       []string
 	KeyFileType   EncryptionType
 	Passthrough   bool
+	StripHeader   bool
 }
 
 // AccessRule represents a single ALLOW/DENY rule based on the value of a claim in
@@ -152,20 +153,28 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 					r.Redirect = args1[0]
 				case "publickey":
 					args1 := c.RemainingArgs()
-					if len(args1) != 1 || r.KeyFileType != 0 {
+					if len(args1) != 1 {
 						return nil, c.ArgErr()
 					}
-					r.KeyFile = args1[0]
+					if len(r.KeyFile) > 0 && r.KeyFileType != RSA {
+						return nil, c.ArgErr()
+					}
+					r.KeyFile = append(r.KeyFile, args1[0])
 					r.KeyFileType = RSA
 				case "secret":
 					args1 := c.RemainingArgs()
-					if len(args1) != 1 || r.KeyFileType != 0 {
+					if len(args1) != 1 {
 						return nil, c.ArgErr()
 					}
-					r.KeyFile = args1[0]
+					if len(r.KeyFile) > 0 && r.KeyFileType != HMAC {
+						return nil, c.ArgErr()
+					}
+					r.KeyFile = append(r.KeyFile, args1[0])
 					r.KeyFileType = HMAC
 				case "passthrough":
 					r.Passthrough = true
+				case "strip_header":
+					r.StripHeader = true
 				}
 			}
 			rules = append(rules, r)

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"io/ioutil"
+
 	"path"
 
 	"github.com/dgrijalva/jwt-go"
@@ -72,26 +73,54 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
 
-		// Initialize a new caching layer if this is the first request to a protected path.
-		// Cache only operates when key material is stored on disk.  When using environment variables
-		// this has no effect.
-		_, ok := b.cache[p.KeyFile]
-		if !ok {
-			b.cache[p.KeyFile] = keycache{
-				KeyFile:     p.KeyFile,
-				KeyFileType: p.KeyFileType,
-			}
-		}
-		b.current = b.cache[p.KeyFile]
+		var vToken *jwt.Token
 
-		// Validate token
-		vToken, err := ValidateToken(uToken, b)
-		if err != nil {
-			if p.Passthrough {
-				continue
+		switch {
+		case len(p.KeyFile) > 0:
+
+			// Loop through all possible key files on disk, using cache
+			for _, keyfile := range p.KeyFile {
+				// Initialize a new caching layer if this is the first request to a protected path.
+				// Cache only operates when key material is stored on disk.  When using environment variables
+				// this has no effect.
+				_, ok := b.cache[keyfile]
+				if !ok {
+					b.cache[keyfile] = keycache{
+						KeyFile:     keyfile,
+						KeyFileType: p.KeyFileType,
+					}
+				}
+				b.current = b.cache[keyfile]
+
+				// Validate token
+				vToken, err = ValidateToken(uToken, b)
+
+				if err == nil {
+					// break on first correctly validated token
+					break
+				}
 			}
-			return handleUnauthorized(w, r, p, h.Realm), nil
+
+			// Check last error of validating token.  If error still exists, no keyfiles matched
+			if err != nil || vToken == nil {
+				if p.Passthrough {
+					continue
+				}
+				return handleUnauthorized(w, r, p, h.Realm), nil
+			}
+		default:
+			// when no keyfiles, use environment variables, clear cache first
+			b.current = keycache{}
+			vToken, err = ValidateToken(uToken, b)
+
+			if err != nil {
+				if p.Passthrough {
+					continue
+				}
+				return handleUnauthorized(w, r, p, h.Realm), nil
+			}
 		}
+
 		vClaims, err := Flatten(vToken.Claims.(jwt.MapClaims), "", DotStyle)
 		if err != nil {
 			return handleUnauthorized(w, r, p, h.Realm), nil

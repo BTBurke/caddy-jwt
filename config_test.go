@@ -80,7 +80,7 @@ var _ = Describe("JWTAuth Config", func() {
 				}`, false, []Rule{
 					Rule{
 						Path:        "/",
-						KeyFile:     "/test/test.pem",
+						KeyFile:     []string{"/test/test.pem"},
 						KeyFileType: RSA,
 					},
 				}},
@@ -90,8 +90,30 @@ var _ = Describe("JWTAuth Config", func() {
 				}`, false, []Rule{
 					Rule{
 						Path:        "/",
-						KeyFile:     "/test/test.secret",
+						KeyFile:     []string{"/test/test.secret"},
 						KeyFileType: HMAC,
+					},
+				}},
+				{`jwt {
+					path /
+					secret /test/test.secret
+					secret /test/test2.secret
+				}`, false, []Rule{
+					Rule{
+						Path:        "/",
+						KeyFile:     []string{"/test/test.secret", "/test/test2.secret"},
+						KeyFileType: HMAC,
+					},
+				}},
+				{`jwt {
+					path /
+					publickey /test/test.pub
+					publickey /test/test2.pub
+				}`, false, []Rule{
+					Rule{
+						Path:        "/",
+						KeyFile:     []string{"/test/test.pub", "/test/test2.pub"},
+						KeyFileType: RSA,
 					},
 				}},
 				{`jwt {
