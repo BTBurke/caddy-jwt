@@ -416,6 +416,7 @@ var _ = Describe("Auth", func() {
 		token.Claims.(jwt.MapClaims)["float64"] = float64(3.14159)
 		token.Claims.(jwt.MapClaims)["bool"] = true
 		token.Claims.(jwt.MapClaims)["list"] = []string{"foo", "bar", "bazz"}
+		token.Claims.(jwt.MapClaims)["http://test.com/path"] = "true"
 
 		validToken, err := token.SignedString([]byte("secret"))
 		if err != nil {
@@ -517,12 +518,13 @@ var _ = Describe("Auth", func() {
 
 			Expect(result).To(Equal(http.StatusOK))
 			expectedHeaders := map[string]string{
-				"Token-Claim-User":    "test",
-				"Token-Claim-Bool":    "true",
-				"Token-Claim-Float32": "3.14159",
-				"Token-Claim-Float64": "3.14159",
-				"Token-Claim-Int32":   "10",
-				"Token-Claim-List":    "foo,bar,bazz",
+				"Token-Claim-User":                       "test",
+				"Token-Claim-Bool":                       "true",
+				"Token-Claim-Float32":                    "3.14159",
+				"Token-Claim-Float64":                    "3.14159",
+				"Token-Claim-Int32":                      "10",
+				"Token-Claim-List":                       "foo,bar,bazz",
+				"Token-Claim-Http:%2F%2Ftest.com%2Fpath": "true",
 			}
 			returnedHeaders := rec.Header()
 			for head, value := range expectedHeaders {
@@ -533,6 +535,67 @@ var _ = Describe("Auth", func() {
 				Expect(val[0]).To(Equal(value))
 			}
 
+		})
+		Describe("Strip headers when set", func() {
+			rw := Auth{
+				Next: httpserver.HandlerFunc(passThruHandler),
+				Rules: []Rule{
+					Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, StripHeader: true},
+				},
+				Realm: "testing.com",
+			}
+
+			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
+				Fail("unexpected error setting JWT_SECRET")
+			}
+			if err := os.Unsetenv("JWT_PUBLIC_KEY"); err != nil {
+				Fail("unexpected error unsetting JWT_PUBLIC_KEY")
+			}
+			token := jwt.New(jwt.SigningMethodHS256)
+			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
+			token.Claims.(jwt.MapClaims)["user"] = "test"
+			token.Claims.(jwt.MapClaims)["int32"] = int32(10)
+			token.Claims.(jwt.MapClaims)["float32"] = float32(3.14159)
+			token.Claims.(jwt.MapClaims)["float64"] = float64(3.14159)
+			token.Claims.(jwt.MapClaims)["bool"] = true
+			token.Claims.(jwt.MapClaims)["list"] = []string{"foo", "bar", "bazz"}
+			token.Claims.(jwt.MapClaims)["http://test.com/path.me"] = "true"
+
+			validToken, err := token.SignedString([]byte("secret"))
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
+			}
+
+			It("set claims as individual headers, and strips if necessary", func() {
+				req, err := http.NewRequest("GET", "/testing", nil)
+				req.Header.Set("Authorization", strings.Join([]string{"Bearer", validToken}, " "))
+
+				rec := httptest.NewRecorder()
+				result, err := rw.ServeHTTP(rec, req)
+				if err != nil {
+					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+				}
+
+				Expect(result).To(Equal(http.StatusOK))
+				expectedHeaders := map[string]string{
+					"Token-Claim-User":    "test",
+					"Token-Claim-Bool":    "true",
+					"Token-Claim-Float32": "3.14159",
+					"Token-Claim-Float64": "3.14159",
+					"Token-Claim-Int32":   "10",
+					"Token-Claim-List":    "foo,bar,bazz",
+					"Token-Claim-Path.me": "true",
+				}
+				returnedHeaders := rec.Header()
+				for head, value := range expectedHeaders {
+					val, ok := returnedHeaders[head]
+					if !ok {
+						Fail(fmt.Sprintf("expected header not in response: %v. Have: %v", head, returnedHeaders))
+					}
+					Expect(val[0]).To(Equal(value))
+				}
+
+			})
 		})
 		Describe("Function correctly as an authorization middleware for complex access rules", func() {
 
@@ -804,10 +867,13 @@ var _ = Describe("Auth", func() {
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
 				}
+				defer os.Remove(key1)
 				key2, err := createKeyFile("notvalidkey")
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
 				}
+				defer os.Remove(key2)
+
 				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
 
 				rw := Auth{
@@ -830,10 +896,13 @@ var _ = Describe("Auth", func() {
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
 				}
+				defer os.Remove(key1)
 				key2, err := createKeyFile("notvalidkey")
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
 				}
+				defer os.Remove(key2)
+
 				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
 
 				rw := Auth{
@@ -856,6 +925,8 @@ var _ = Describe("Auth", func() {
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
 				}
+				defer os.Remove(key2)
+
 				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
 
 				rw := Auth{

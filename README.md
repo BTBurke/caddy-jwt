@@ -106,12 +106,41 @@ Token-Claim-User: test
 Token-Claim-Role: admin
 Token-Claim-Logins: 10
 Token-Claim-Groups: user,operator
-Token-Claim-Data.Payload: something
+Token-Claim-Data.payload: something
 ```
 
 Token claims will always be converted to a string.  If you expect your claim to be another type, remember to convert it back before you use it.  Nested JSON objects will be flattened.  In the example above, you can see that the nested `payload` field is flattened to `data.payload`.
 
 All request headers with the prefix `Token-Claim-` are stripped from the request before being forwarded upstream, so users can't spoof them.
+
+Claims with special characters that aren't allowed in HTTP headers will be URL escaped.  For example, Auth0 requires that claims be namespaced with the full URL such as
+
+```json
+{
+  "http://example.com/user": "test"
+}
+```
+
+The URL escaping will lead to some ugly headers like
+
+```
+Token-Claim-Http:%2F%2Fexample.com%2Fuser: test
+```
+
+If you only care about the last section of the path, you can use the `strip_header` directive to strip everything before the last portion of the path.
+
+```
+jwt {
+  path /
+  strip_header
+}
+```
+
+When combined with the claims above, it will result in a header:
+
+```
+Token-Claim-User: test
+```
 
 ### Allowing Public Access to Certain Paths
 

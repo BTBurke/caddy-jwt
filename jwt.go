@@ -1,21 +1,18 @@
 package jwt
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"strings"
-
-	"bytes"
-
 	"time"
-
-	"io/ioutil"
-
-	"path"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
@@ -155,7 +152,17 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 
 		// set claims as separate headers for downstream to consume
 		for claim, value := range vClaims {
-			headerName := "Token-Claim-" + strings.ToUpper(claim)
+			var headerName string
+			switch p.StripHeader {
+			case true:
+				stripped := strings.SplitAfter(claim, "/")
+				finalStrip := stripped[len(stripped)-1]
+				headerName = "Token-Claim-" + modTitleCase(finalStrip)
+			default:
+				escaped := url.PathEscape(claim)
+				headerName = "Token-Claim-" + modTitleCase(escaped)
+			}
+
 			switch v := value.(type) {
 			case string:
 				r.Header.Set(headerName, v)
@@ -444,4 +451,15 @@ func contains(list interface{}, value string) bool {
 		}
 	}
 	return false
+}
+
+func modTitleCase(s string) string {
+	switch {
+	case len(s) == 0:
+		return s
+	case len(s) == 1:
+		return strings.ToUpper(s)
+	default:
+		return strings.ToUpper(string(s[0])) + s[1:]
+	}
 }
