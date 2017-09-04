@@ -39,6 +39,10 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 			continue
 		}
 
+                if r.Method == "OPTIONS" {
+                        continue
+                }
+
 		// strip potentially spoofed claims
 		for header, _ := range r.Header {
 			if strings.HasPrefix(header, "Token-Claim-") {
