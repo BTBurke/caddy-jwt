@@ -1,3 +1,7 @@
+# v3.1.0
+
+Allows OPTIONS requests to pass through without authentication to conform with the CORS spec 
+
 # v3.0.0
 
 The major feature is support for Auth0-style claims which require a fully namespaced key.  This leads to claims that look like
