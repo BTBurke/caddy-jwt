@@ -482,6 +482,18 @@ var _ = Describe("Auth", func() {
 			Expect(result).To(Equal(http.StatusOK))
 		})
 
+                It("allow OPTIONS requests to continue to next handler", func() {
+			req, err := http.NewRequest("OPTIONS", "/testing", nil)
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusOK))
+		})
+
 		It("allow unprotected requests to continue to next handler", func() {
 			req, err := http.NewRequest("GET", "/unprotected", nil)
 
