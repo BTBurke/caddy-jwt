@@ -393,6 +393,107 @@ var _ = Describe("Auth", func() {
 			Expect(rec.Result().Header.Get("Location")).To(Equal("/login?backTo=/testing"))
 		})
 	})
+	Describe("Function correctly as an authorization middleware for malformed paths", func() {
+		It("return 401 when no authorization header and the path is protected (malformed path - 1st level)", func() {
+			rw := Auth{
+				Next: httpserver.HandlerFunc(passThruHandler),
+				Rules: []Rule{
+					Rule{Path: "/"},
+				},
+				Realm: "testing.com",
+			}
+			req, err := http.NewRequest("GET", "//testing", nil)
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
+		})
+		It("return 401 when no authorization header and the path is protected (malformed path - root level)", func() {
+			rw := Auth{
+				Next: httpserver.HandlerFunc(passThruHandler),
+				Rules: []Rule{
+					Rule{Path: "/"},
+				},
+				Realm: "testing.com",
+			}
+			req, err := http.NewRequest("GET", "//", nil)
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
+		})
+		
+		It("return 401 when no authorization header and the path is protected (malformed path - 2nd level)", func() {
+			rw := Auth{
+				Next: httpserver.HandlerFunc(passThruHandler),
+				Rules: []Rule{
+					Rule{Path: "/testing/test"},
+				},
+				Realm: "testing.com",
+			}
+			req, err := http.NewRequest("GET", "/testing//test", nil)
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
+		})
+		
+		It("return 401 when no authorization header and the path is protected (malformed path - 2nd of nested)", func() {
+			rw := Auth{
+				Next: httpserver.HandlerFunc(passThruHandler),
+				Rules: []Rule{
+					Rule{Path: "/testing/test/secret"},
+				},
+				Realm: "testing.com",
+			}
+			req, err := http.NewRequest("GET", "/testing//test/secret", nil)
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
+		})
+		It("return 401 when no authorization header and the path is protected (malformed path - 3rd level)", func() {
+			rw := Auth{
+				Next: httpserver.HandlerFunc(passThruHandler),
+				Rules: []Rule{
+					Rule{Path: "/testing/test/secret"},
+				},
+				Realm: "testing.com",
+			}
+			req, err := http.NewRequest("GET", "/testing/test//secret", nil)
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
+		})
+
+
+	})
 	Describe("Function correctly as an authorization middleware", func() {
 		rw := Auth{
 			Next: httpserver.HandlerFunc(passThruHandler),
@@ -430,6 +531,19 @@ var _ = Describe("Auth", func() {
 
 		It("return 401 when no authorization header and the path is protected", func() {
 			req, err := http.NewRequest("GET", "/testing", nil)
+
+			rec := httptest.NewRecorder()
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
+		})
+
+		It("return 401 when no authorization header and the path is protected (malformed path)", func() {
+			req, err := http.NewRequest("GET", "//testing", nil)
 
 			rec := httptest.NewRecorder()
 			result, err := rw.ServeHTTP(rec, req)
@@ -482,7 +596,7 @@ var _ = Describe("Auth", func() {
 			Expect(result).To(Equal(http.StatusOK))
 		})
 
-                It("allow OPTIONS requests to continue to next handler", func() {
+        It("allow OPTIONS requests to continue to next handler", func() {
 			req, err := http.NewRequest("OPTIONS", "/testing", nil)
 
 			rec := httptest.NewRecorder()

@@ -1,3 +1,7 @@
+# v3.2.0
+
+Critical bug fix for malformed paths that allow access to protected resources.  This appears to be an upstream bug in Caddy that allows fuzzy matching for paths that are autocorrected by most browser implementations, but break strict path matching that is important for protected resources.
+
 # v3.1.0
 
 Allows OPTIONS requests to pass through without authentication to conform with the CORS spec 

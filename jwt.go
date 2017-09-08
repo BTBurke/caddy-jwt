@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"regexp"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
@@ -35,13 +36,21 @@ type AuthBackend interface {
 func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 	// if the request path is any of the configured paths, validate JWT
 	for _, p := range h.Rules {
-		if !httpserver.Path(r.URL.Path).Matches(p.Path) {
+		
+		// TODO: this is a hack to work our CVE in Caddy dealing with parsing
+		// malformed URLs.  Can be removed once upstream fix for path match
+		if r.URL.EscapedPath() == "" {
+			return handleUnauthorized(w, r, p, h.Realm), nil
+		}
+		re := regexp.MustCompile("/+")
+		cleanedPath := re.ReplaceAllString(r.URL.Path, "/")
+		if !httpserver.Path(cleanedPath).Matches(p.Path) {
 			continue
 		}
 
-                if r.Method == "OPTIONS" {
-                        continue
-                }
+        if r.Method == "OPTIONS" {
+            continue
+        }
 
 		// strip potentially spoofed claims
 		for header, _ := range r.Header {
