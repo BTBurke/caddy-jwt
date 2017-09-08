@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"regexp"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
@@ -42,8 +41,7 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		if r.URL.EscapedPath() == "" {
 			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
-		re := regexp.MustCompile("/+")
-		cleanedPath := re.ReplaceAllString(r.URL.Path, "/")
+		cleanedPath := path.Clean(r.URL.Path)
 		if !httpserver.Path(cleanedPath).Matches(p.Path) {
 			continue
 		}
