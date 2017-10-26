@@ -18,17 +18,6 @@ const (
 	DENY
 )
 
-// EncryptionType distinguishes between RSA and HMAC key material when stored in a file
-type EncryptionType int
-
-const (
-	// RSA is used to specify a file that contains a PEM-encoded public key
-	RSA EncryptionType = 1 << iota
-
-	// HMAC is used to specify a file that contains a HMAC-SHA secret
-	HMAC
-)
-
 // Auth represents configuration information for the middleware
 type Auth struct {
 	Rules []Rule
@@ -43,8 +32,7 @@ type Rule struct {
 	AccessRules   []AccessRule
 	Redirect      string
 	AllowRoot     bool
-	KeyFile       []string
-	KeyFileType   EncryptionType
+	KeyBackends   []KeyBackend
 	Passthrough   bool
 	StripHeader   bool
 }
@@ -90,6 +78,11 @@ func Setup(c *caddy.Controller) error {
 }
 
 func parse(c *caddy.Controller) ([]Rule, error) {
+	defaultKeyBackends, err := NewDefaultKeyBackends()
+	if err != nil {
+		return nil, err
+	}
+
 	// This parses the following config blocks
 	/*
 		jwt /hello
@@ -105,7 +98,9 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 		case 0:
 			// no argument passed, check the config block
 
-			var r = Rule{}
+			var r = Rule{
+				KeyBackends: defaultKeyBackends,
+			}
 			for c.NextBlock() {
 				switch c.Val() {
 				case "path":
@@ -156,21 +151,21 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 					if len(args1) != 1 {
 						return nil, c.ArgErr()
 					}
-					if len(r.KeyFile) > 0 && r.KeyFileType != RSA {
-						return nil, c.ArgErr()
+					backend, err := NewLazyPublicKeyFileBackend(args1[0])
+					if err != nil {
+						return nil, c.Err(err.Error())
 					}
-					r.KeyFile = append(r.KeyFile, args1[0])
-					r.KeyFileType = RSA
+					r.KeyBackends = append(r.KeyBackends, backend)
 				case "secret":
 					args1 := c.RemainingArgs()
 					if len(args1) != 1 {
 						return nil, c.ArgErr()
 					}
-					if len(r.KeyFile) > 0 && r.KeyFileType != HMAC {
-						return nil, c.ArgErr()
+					backend, err := NewLazyHmacKeyBackend(args1[0])
+					if err != nil {
+						return nil, c.Err(err.Error())
 					}
-					r.KeyFile = append(r.KeyFile, args1[0])
-					r.KeyFileType = HMAC
+					r.KeyBackends = append(r.KeyBackends, backend)
 				case "passthrough":
 					r.Passthrough = true
 				case "strip_header":
@@ -179,7 +174,10 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 			}
 			rules = append(rules, r)
 		case 1:
-			rules = append(rules, Rule{Path: args[0]})
+			rules = append(rules, Rule{
+				Path: args[0],
+				KeyBackends: defaultKeyBackends,
+			})
 			// one argument passed
 			if c.NextBlock() {
 				// path specified, no block required.

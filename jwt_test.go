@@ -43,6 +43,21 @@ zVE+fUVCPsFSnNZagq8hAkEA4tOFUKxqEDg+QXaJbFXiUTj9BMDUlEGTqGS/becS
 99L5HGoSkzGQazoqD6bA6ZQwF+gUN1LweweK7LLcnZsVFg==
 -----END RSA PRIVATE KEY-----
 `
+	ecdsaPublicKey   = `-----BEGIN PUBLIC KEY-----
+MIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQBa7NUN5FTTN0snJpIxpljP3vZ/gQA
+X7yBZpGBdHxPAKcV1dkxUPZeaqJKS5UsGL+Z5QzaaionFVddNNTiZxFZVmoAJxcF
+lW5lqXQXg4iJ6yNd7dVrNDSvH6CyVNME9lhu4sDXsYEofjidtnNsSQ4cLIiW3q2J
+6pF7NtHApTtl/GKDPoY=
+-----END PUBLIC KEY-----
+`
+	ecdsaPrivateKey = `-----BEGIN EC PRIVATE KEY-----
+MIHcAgEBBEIB1QVyei7HRoi+sTQUj5RrvRiqZ5/xUSzqCm5hm/Xco5B/i2gZID/B
+J48fw0IFpKcWX4DY8to2wQWI6vYH0Up+ekWgBwYFK4EEACOhgYkDgYYABAFrs1Q3
+kVNM3SycmkjGmWM/e9n+BABfvIFmkYF0fE8ApxXV2TFQ9l5qokpLlSwYv5nlDNpq
+KicVV1001OJnEVlWagAnFwWVbmWpdBeDiInrI13t1Ws0NK8foLJU0wT2WG7iwNex
+gSh+OJ22c2xJDhwsiJberYnqkXs20cClO2X8YoM+hg==
+-----END EC PRIVATE KEY-----
+`
 )
 
 func TestCaddyJwt(t *testing.T) {
@@ -88,26 +103,67 @@ func genRSAToken(privatekey string, claims map[string]interface{}) string {
 	return validToken
 }
 
-var _ = Describe("Auth", func() {
+func setSecretAndGetEnv(value string) *HmacKeyBackend {
+	backend := setSecretAndTryGetEnv(value)
+	if backend == nil {
+		Fail("unexpected error constructing backends")
+	}
+	return backend
+}
 
+func setSecretAndTryGetEnv(value string) *HmacKeyBackend {
+	if err := os.Setenv(ENV_SECRET, value); err != nil {
+		Fail("unexpected error setting JWT_SECRET")
+	}
+	os.Unsetenv(ENV_PUBLIC_KEY)
+	backends, err := NewDefaultKeyBackends()
+	if err != nil {
+		Fail(fmt.Sprintf("unexpected error constructing backends: %s", err))
+	}
+	if len(backends) != 1 {
+		return nil
+	}
+	return backends[0].(*HmacKeyBackend)
+}
+
+func setPublicKeyAndGetEnv(value string) *PublicKeyBackend {
+	backend := setPublicKeyAndTryGetEnv(value)
+	if backend == nil {
+		Fail("unexpected error constructing backends")
+	}
+	return backend
+}
+
+func setPublicKeyAndTryGetEnv(value string) *PublicKeyBackend {
+	if err := os.Setenv(ENV_PUBLIC_KEY, value); err != nil {
+		Fail("unexpected error setting JWT_PUBLIC_KEY")
+	}
+	os.Unsetenv(ENV_SECRET)
+	backends, err := NewDefaultKeyBackends()
+	if err != nil {
+		Fail(fmt.Sprintf("unexpected error constructing backends: %s", err))
+	}
+	if len(backends) != 1 {
+		return nil
+	}
+	return backends[0].(*PublicKeyBackend)
+}
+
+var _ = Describe("Auth", func() {
+	AfterEach(func() {
+		os.Unsetenv(ENV_PUBLIC_KEY)
+		os.Unsetenv(ENV_SECRET)
+	})
 	Describe("Use environment to get secrets", func() {
 
 		It("should get the JWT secret from the environment JWT_SECRET", func() {
-			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
-				Fail("Unexpected error setting JWT_SECRET")
-			}
-			b := backend{}
-			secret := b.GetHMACSecret()
-			Expect(secret).To(Equal([]byte("secret")))
+			backend := setSecretAndGetEnv("secret")
+			Expect(backend.secret).To(Equal([]byte("secret")))
 		})
 
 		It("should return an error JWT_SECRET not set", func() {
-			if err := os.Setenv("JWT_SECRET", ""); err != nil {
-				Fail("Unexpected error setting JWT_SECRET")
-			}
-			b := backend{}
-			secret := b.GetHMACSecret()
-			Expect(secret).To(BeNil())
+			backend := setSecretAndTryGetEnv("")
+			Expect(backend).To(BeNil())
 		})
 
 		It("should find RSA key material stored on disk", func() {
@@ -123,21 +179,39 @@ var _ = Describe("Auth", func() {
 			if err := keyfile.Close(); err != nil {
 				Fail("Unexpected error closing temporary key file")
 			}
-
-			b := backend{
-				current: keycache{
-					KeyFile:     keyfile.Name(),
-					KeyFileType: RSA,
-				},
-				cache: make(map[string]keycache),
+			backend, err := NewLazyPublicKeyFileBackend(keyfile.Name())
+			if err != nil {
+				Fail(err.Error())
 			}
-			rsakey := b.GetRSAPublicKey()
-			Expect(rsakey).To(Equal(pemKey))
-			Expect(b.cache[keyfile.Name()].Key).To(Equal([]byte(rsaPublicKey)))
-			Expect(b.current.KeyFile).To(Equal(keyfile.Name()))
+			if err := backend.loadIfRequired(); err != nil {
+				Fail(err.Error())
+			}
+			Expect(backend.publicKey).To(Equal(pemKey))
+			Expect(backend.filename).To(Equal(keyfile.Name()))
+		})
 
-			rsakeyCached := b.GetRSAPublicKey()
-			Expect(rsakeyCached).To(Equal(pemKey))
+		It("should find ECDSA key material stored on disk", func() {
+			pemKey, _ := jwt.ParseECPublicKeyFromPEM([]byte(ecdsaPublicKey))
+			keyfile, err := ioutil.TempFile(os.TempDir(), "testkey")
+			if err != nil {
+				Fail("Unexpected error creating temporary key file")
+			}
+			defer os.Remove(keyfile.Name())
+			if _, err := keyfile.Write([]byte(ecdsaPublicKey)); err != nil {
+				Fail("Unexpected error writing temporary key file")
+			}
+			if err := keyfile.Close(); err != nil {
+				Fail("Unexpected error closing temporary key file")
+			}
+			backend, err := NewLazyPublicKeyFileBackend(keyfile.Name())
+			if err != nil {
+				Fail(err.Error())
+			}
+			if err := backend.loadIfRequired(); err != nil {
+				Fail(err.Error())
+			}
+			Expect(backend.publicKey).To(Equal(pemKey))
+			Expect(backend.filename).To(Equal(keyfile.Name()))
 		})
 
 		It("should find HMAC key material stored on disk and invalidate cache if file changes", func() {
@@ -157,43 +231,37 @@ var _ = Describe("Auth", func() {
 				Fail("Unexpected error closing temporary key file")
 			}
 
-			b := backend{
-				current: keycache{
-					KeyFile:     keyfile.Name(),
-					KeyFileType: HMAC,
-				},
-				cache: make(map[string]keycache),
+			backend, err := NewLazyHmacKeyBackend(keyfile.Name())
+			if err != nil {
+				Fail(err.Error())
 			}
-			key1 := b.GetHMACSecret()
-			Expect(key1).To(Equal(secret1))
-			Expect(b.cache[keyfile.Name()].Key).To(Equal(secret1))
-			Expect(b.current.KeyFile).To(Equal(keyfile.Name()))
-
-			key1Cached := b.GetHMACSecret()
-			Expect(key1Cached).To(Equal(secret1))
+			if err := backend.loadIfRequired(); err != nil {
+				Fail(err.Error())
+			}
+			Expect(backend.secret).To(Equal(secret1))
+			Expect(backend.filename).To(Equal(keyfile.Name()))
 
 			// write new value and invalidate cache after short timeout to allow modinfo time to change
 			time.Sleep(20 * time.Millisecond)
 			if err := ioutil.WriteFile(keyfile.Name(), secret2, os.ModePerm); err != nil {
 				Fail("Unexpected error overwriting keyfile in cache invalidation test")
 			}
-			key2 := b.GetHMACSecret()
-			Expect(key2).To(Equal(secret2))
 
+			if err := backend.loadIfRequired(); err != nil {
+				Fail(err.Error())
+			}
+			Expect(backend.secret).To(Equal(secret2))
+			Expect(backend.filename).To(Equal(keyfile.Name()))
 		})
 
 		It("should detect invalid configurations of auth backends", func() {
 			os.Unsetenv("JWT_PUBLIC_KEY")
 			os.Unsetenv("JWT_SECRET")
-
-			b := backend{}
-			v := b.IsConfigValid()
-			Expect(v).To(BeFalse())
-
-			os.Setenv("JWT_SECRET", "secret")
-			os.Setenv("JWT_PUBLIC_KEY", rsaPublicKey)
-			v2 := b.IsConfigValid()
-			Expect(v2).To(BeFalse())
+			backends, err := NewDefaultKeyBackends()
+			if err != nil {
+				Fail(err.Error())
+			}
+			Expect(len(backends)).To(Equal(0))
 		})
 	})
 
@@ -251,28 +319,21 @@ var _ = Describe("Auth", func() {
 	Describe("Validate tokens in accordance with the JWT standard", func() {
 
 		It("should validate a correctly formed token", func() {
-			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
-				Fail("unexpected error setting JWT_SECRET")
-			}
-			os.Unsetenv("JWT_PUBLIC_KEY")
+			backend := setSecretAndGetEnv("secret")
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 			sToken, err := token.SignedString([]byte("secret"))
 			if err != nil {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
-			b := backend{}
-			vToken, err := ValidateToken(sToken, b)
+			vToken, err := ValidateToken(sToken, backend)
 
 			Expect(err).To(BeNil())
 			Expect(vToken.Valid).To(Equal(true))
 		})
 
 		It("should validate a correctly formed RSA token", func() {
-			os.Unsetenv("JWT_SECRET")
-			if err := os.Setenv("JWT_PUBLIC_KEY", rsaPublicKey); err != nil {
-				Fail("unexpected error setting JWT_PUBLIC_KEY")
-			}
+			backend := setPublicKeyAndGetEnv(rsaPublicKey)
 			token := jwt.New(jwt.SigningMethodRS256)
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 
@@ -285,18 +346,34 @@ var _ = Describe("Auth", func() {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
 
-			b := backend{}
-			vToken, err := ValidateToken(sToken, b)
+			vToken, err := ValidateToken(sToken, backend)
+
+			Expect(err).To(BeNil())
+			Expect(vToken.Valid).To(Equal(true))
+		})
+
+		It("should validate a correctly formed ECDSA token", func() {
+			backend := setPublicKeyAndGetEnv(ecdsaPublicKey)
+			token := jwt.New(jwt.SigningMethodES512)
+			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
+
+			secret, err := jwt.ParseECPrivateKeyFromPEM([]byte(ecdsaPrivateKey))
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing private key: %s", err))
+			}
+			sToken, err := token.SignedString(secret)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
+			}
+
+			vToken, err := ValidateToken(sToken, backend)
 
 			Expect(err).To(BeNil())
 			Expect(vToken.Valid).To(Equal(true))
 		})
 
 		It("should not validate a incorrectly formed token", func() {
-			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
-				Fail("unexpected error setting JWT_SECRET")
-			}
-			os.Unsetenv("JWT_PUBLIC_KEY")
+			backend := setSecretAndGetEnv("secret")
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
 			sToken, err := token.SignedString([]byte("notsecret"))
@@ -304,27 +381,23 @@ var _ = Describe("Auth", func() {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
 
-			b := backend{}
-			vToken, err := ValidateToken(sToken, b)
+			vToken, err := ValidateToken(sToken, backend)
 
 			Expect(err).To(HaveOccurred())
 			Expect(vToken).To(BeNil())
 		})
 
 		It("should not validate a malformed token", func() {
+			backend := setSecretAndGetEnv("secret")
 
-			b := backend{}
-			vToken, err := ValidateToken(malformedToken, b)
+			vToken, err := ValidateToken(malformedToken, backend)
 
 			Expect(err).To(HaveOccurred())
 			Expect(vToken).To(BeNil())
 		})
 
 		It("should not validate a token with an expired timestamp", func() {
-			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
-				Fail("unexpected error setting JWT_SECRET")
-			}
-			os.Unsetenv("JWT_PUBLIC_KEY")
+			backend := setSecretAndGetEnv("secret")
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * -1).Unix()
 			sToken, err := token.SignedString([]byte("secret"))
@@ -332,18 +405,14 @@ var _ = Describe("Auth", func() {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
 
-			b := backend{}
-			vToken, err := ValidateToken(sToken, b)
+			vToken, err := ValidateToken(sToken, backend)
 
 			Expect(err).To(HaveOccurred())
 			Expect(vToken).To(BeNil())
 		})
 
 		It("should not allow JWT with algorithm none", func() {
-			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
-				Fail("unexpected error setting JWT_SECRET")
-			}
-			os.Unsetenv("JWT_PUBLIC_KEY")
+			backend := setSecretAndGetEnv("secret")
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Header["alg"] = "none"
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
@@ -352,8 +421,7 @@ var _ = Describe("Auth", func() {
 				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
 			}
 
-			b := backend{}
-			vToken, err := ValidateToken(sToken, b)
+			vToken, err := ValidateToken(sToken, backend)
 
 			Expect(err).To(HaveOccurred())
 			Expect(vToken).To(BeNil())
@@ -495,19 +563,13 @@ var _ = Describe("Auth", func() {
 
 	})
 	Describe("Function correctly as an authorization middleware", func() {
+		backend := setSecretAndGetEnv("secret")
 		rw := Auth{
 			Next: httpserver.HandlerFunc(passThruHandler),
 			Rules: []Rule{
-				Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}},
+				Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, KeyBackends: []KeyBackend{backend}},
 			},
 			Realm: "testing.com",
-		}
-
-		if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
-			Fail("unexpected error setting JWT_SECRET")
-		}
-		if err := os.Unsetenv("JWT_PUBLIC_KEY"); err != nil {
-			Fail("unexpected error unsetting JWT_PUBLIC_KEY")
 		}
 		token := jwt.New(jwt.SigningMethodHS256)
 		token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
@@ -663,19 +725,13 @@ var _ = Describe("Auth", func() {
 
 		})
 		Describe("Strip headers when set", func() {
+			backend := setSecretAndGetEnv("secret")
 			rw := Auth{
 				Next: httpserver.HandlerFunc(passThruHandler),
 				Rules: []Rule{
-					Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, StripHeader: true},
+					Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, StripHeader: true, KeyBackends: []KeyBackend{backend}},
 				},
 				Realm: "testing.com",
-			}
-
-			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
-				Fail("unexpected error setting JWT_SECRET")
-			}
-			if err := os.Unsetenv("JWT_PUBLIC_KEY"); err != nil {
-				Fail("unexpected error unsetting JWT_PUBLIC_KEY")
 			}
 			token := jwt.New(jwt.SigningMethodHS256)
 			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
@@ -724,7 +780,7 @@ var _ = Describe("Auth", func() {
 			})
 		})
 		Describe("Function correctly as an authorization middleware for complex access rules", func() {
-
+			backend := setSecretAndGetEnv("secret")
 			tokenUser := genToken("secret", map[string]interface{}{"user": "test", "role": "member"})
 			tokenNotUser := genToken("secret", map[string]interface{}{"user": "bad"})
 			tokenAdmin := genToken("secret", map[string]interface{}{"role": "admin"})
@@ -740,16 +796,10 @@ var _ = Describe("Auth", func() {
 				Claim: "role",
 				Value: "member",
 			}
-			ruleAllowUser := Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleAllowUser}}
-			ruleDenyRole := Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole}}
-			ruleAllowRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleAllowRole, accessRuleAllowUser}}}
-			ruleDenyRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole, accessRuleAllowUser}}}
-			if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
-				Fail("Could not set environment secret")
-			}
-			if err := os.Unsetenv("JWT_PUBLIC_KEY"); err != nil {
-				Fail("Could not unset secret")
-			}
+			ruleAllowUser := Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleAllowUser}, KeyBackends: []KeyBackend{backend}}
+			ruleDenyRole := Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole}, KeyBackends: []KeyBackend{backend}}
+			ruleAllowRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleAllowRole, accessRuleAllowUser}, KeyBackends: []KeyBackend{backend}}}
+			ruleDenyRoleAllowUser := []Rule{Rule{Path: "/testing", AccessRules: []AccessRule{accessRuleDenyRole, accessRuleAllowUser}, KeyBackends: []KeyBackend{backend}}}
 
 			It("should allow authorization based on a specific claim value", func() {
 				rw := Auth{
@@ -881,7 +931,7 @@ var _ = Describe("Auth", func() {
 					Claim: "group",
 					Value: "operator",
 				},
-			}}
+			}, KeyBackends: []KeyBackend{backend}}
 			BeforeEach(func() {
 				if err := os.Setenv("JWT_SECRET", "secret"); err != nil {
 					Fail("Could not set environment secret")
@@ -993,10 +1043,18 @@ var _ = Describe("Auth", func() {
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
 				}
+				backend1, err := NewLazyPublicKeyFileBackend(key1)
+				if err != nil {
+					Fail(err.Error())
+				}
 				defer os.Remove(key1)
 				key2, err := createKeyFile("notvalidkey")
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
+				}
+				backend2, err := NewLazyPublicKeyFileBackend(key2)
+				if err != nil {
+					Fail(err.Error())
 				}
 				defer os.Remove(key2)
 
@@ -1004,7 +1062,7 @@ var _ = Describe("Auth", func() {
 
 				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{{Path: "/testing", KeyFile: []string{key1, key2}, KeyFileType: RSA}},
+					Rules: []Rule{{Path: "/testing", KeyBackends: []KeyBackend{backend1, backend2}}},
 				}
 				req, err := http.NewRequest("GET", "/testing", nil)
 				req.Header.Set("Authorization", strings.Join([]string{"Bearer", token}, " "))
@@ -1022,10 +1080,18 @@ var _ = Describe("Auth", func() {
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
 				}
+				backend1, err := NewLazyPublicKeyFileBackend(key1)
+				if err != nil {
+					Fail(err.Error())
+				}
 				defer os.Remove(key1)
 				key2, err := createKeyFile("notvalidkey")
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
+				}
+				backend2, err := NewLazyPublicKeyFileBackend(key2)
+				if err != nil {
+					Fail(err.Error())
 				}
 				defer os.Remove(key2)
 
@@ -1033,7 +1099,7 @@ var _ = Describe("Auth", func() {
 
 				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{{Path: "/testing", KeyFile: []string{key2, key2, key2, key1}, KeyFileType: RSA}},
+					Rules: []Rule{{Path: "/testing", KeyBackends: []KeyBackend{backend2, backend2, backend2, backend1}}},
 				}
 				req, err := http.NewRequest("GET", "/testing", nil)
 				req.Header.Set("Authorization", strings.Join([]string{"Bearer", token}, " "))
@@ -1051,13 +1117,17 @@ var _ = Describe("Auth", func() {
 				if err != nil {
 					Fail(fmt.Sprintf("unexpected error creating key file: %s", err))
 				}
+				backend2, err := NewLazyPublicKeyFileBackend(key2)
+				if err != nil {
+					Fail(err.Error())
+				}
 				defer os.Remove(key2)
 
 				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
 
 				rw := Auth{
 					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{{Path: "/testing", KeyFile: []string{key2, key2, key2}, KeyFileType: RSA}},
+					Rules: []Rule{{Path: "/testing", KeyBackends: []KeyBackend{backend2, backend2, backend2}}},
 				}
 				req, err := http.NewRequest("GET", "/testing", nil)
 				req.Header.Set("Authorization", strings.Join([]string{"Bearer", token}, " "))
