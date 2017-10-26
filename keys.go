@@ -1,11 +1,11 @@
 package jwt
 
 import (
-	"github.com/dgrijalva/jwt-go"
 	"fmt"
-	"time"
-	"os"
+	"github.com/dgrijalva/jwt-go"
 	"io/ioutil"
+	"os"
+	"time"
 )
 
 const ENV_PUBLIC_KEY = "JWT_PUBLIC_KEY"
@@ -150,7 +150,7 @@ func (instance *HmacKeyBackend) ProvideKey(token *jwt.Token) (interface{}, error
 	return instance.secret, nil
 }
 
-type NoopKeyBackend struct {}
+type NoopKeyBackend struct{}
 
 func (instance *NoopKeyBackend) ProvideKey(token *jwt.Token) (interface{}, error) {
 	return nil, fmt.Errorf("there is no keybackend available")

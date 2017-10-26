@@ -43,7 +43,7 @@ zVE+fUVCPsFSnNZagq8hAkEA4tOFUKxqEDg+QXaJbFXiUTj9BMDUlEGTqGS/becS
 99L5HGoSkzGQazoqD6bA6ZQwF+gUN1LweweK7LLcnZsVFg==
 -----END RSA PRIVATE KEY-----
 `
-	ecdsaPublicKey   = `-----BEGIN PUBLIC KEY-----
+	ecdsaPublicKey = `-----BEGIN PUBLIC KEY-----
 MIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQBa7NUN5FTTN0snJpIxpljP3vZ/gQA
 X7yBZpGBdHxPAKcV1dkxUPZeaqJKS5UsGL+Z5QzaaionFVddNNTiZxFZVmoAJxcF
 lW5lqXQXg4iJ6yNd7dVrNDSvH6CyVNME9lhu4sDXsYEofjidtnNsSQ4cLIiW3q2J
@@ -500,7 +500,7 @@ var _ = Describe("Auth", func() {
 			Expect(result).To(Equal(http.StatusUnauthorized))
 			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
 		})
-		
+
 		It("return 401 when no authorization header and the path is protected (malformed path - 2nd level)", func() {
 			rw := Auth{
 				Next: httpserver.HandlerFunc(passThruHandler),
@@ -520,7 +520,7 @@ var _ = Describe("Auth", func() {
 			Expect(result).To(Equal(http.StatusUnauthorized))
 			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
 		})
-		
+
 		It("return 401 when no authorization header and the path is protected (malformed path - 2nd of nested)", func() {
 			rw := Auth{
 				Next: httpserver.HandlerFunc(passThruHandler),
@@ -559,7 +559,6 @@ var _ = Describe("Auth", func() {
 			Expect(result).To(Equal(http.StatusUnauthorized))
 			Expect(rec.Result().Header.Get("WWW-Authenticate")).To(Equal("Bearer realm=\"testing.com\",error=\"invalid_token\""))
 		})
-
 
 	})
 	Describe("Function correctly as an authorization middleware", func() {
@@ -658,7 +657,7 @@ var _ = Describe("Auth", func() {
 			Expect(result).To(Equal(http.StatusOK))
 		})
 
-        It("allow OPTIONS requests to continue to next handler", func() {
+		It("allow OPTIONS requests to continue to next handler", func() {
 			req, err := http.NewRequest("OPTIONS", "/testing", nil)
 
 			rec := httptest.NewRecorder()

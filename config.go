@@ -175,7 +175,7 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 			rules = append(rules, r)
 		case 1:
 			rules = append(rules, Rule{
-				Path: args[0],
+				Path:        args[0],
 				KeyBackends: defaultKeyBackends,
 			})
 			// one argument passed

@@ -1,11 +1,11 @@
 package jwt
 
 import (
+	"crypto/ecdsa"
+	"crypto/rsa"
+	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"io/ioutil"
-	"crypto/rsa"
-	"crypto/ecdsa"
-	"fmt"
 )
 
 func ReadPublicKey(pem []byte) (interface{}, error) {

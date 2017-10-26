@@ -3,13 +3,13 @@ package jwt
 import (
 	"bytes"
 	"fmt"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
 func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {

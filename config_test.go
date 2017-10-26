@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"testing"
 
+	"fmt"
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"fmt"
 	"os"
 )
 
@@ -85,7 +85,7 @@ var _ = Describe("JWTAuth Config", func() {
 					publickey /test/test.pem
 				}`, false, []Rule{
 					Rule{
-						Path: "/",
+						Path:        "/",
 						KeyBackends: []KeyBackend{&LazyPublicKeyBackend{filename: "/test/test.pem"}},
 					},
 				}},
@@ -94,7 +94,7 @@ var _ = Describe("JWTAuth Config", func() {
 					secret /test/test.secret
 				}`, false, []Rule{
 					Rule{
-						Path: "/",
+						Path:        "/",
 						KeyBackends: []KeyBackend{&LazyHmacKeyBackend{filename: "/test/test.secret"}},
 					},
 				}},
@@ -104,7 +104,7 @@ var _ = Describe("JWTAuth Config", func() {
 					secret /test/test2.secret
 				}`, false, []Rule{
 					Rule{
-						Path: "/",
+						Path:        "/",
 						KeyBackends: []KeyBackend{&LazyHmacKeyBackend{filename: "/test/test.secret"}, &LazyHmacKeyBackend{filename: "/test/test2.secret"}},
 					},
 				}},
@@ -114,7 +114,7 @@ var _ = Describe("JWTAuth Config", func() {
 					publickey /test/test2.pub
 				}`, false, []Rule{
 					Rule{
-						Path: "/",
+						Path:        "/",
 						KeyBackends: []KeyBackend{&LazyPublicKeyBackend{filename: "/test/test.pub"}, &LazyPublicKeyBackend{filename: "/test/test2.pub"}},
 					},
 				}},
@@ -124,7 +124,7 @@ var _ = Describe("JWTAuth Config", func() {
 					secret /test/test.secret
 				}`, false, []Rule{
 					Rule{
-						Path: "/",
+						Path:        "/",
 						KeyBackends: []KeyBackend{&LazyPublicKeyBackend{filename: "/test/test.pub"}, &LazyHmacKeyBackend{filename: "/test/test.secret"}},
 					},
 				}},
