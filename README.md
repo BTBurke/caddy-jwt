@@ -19,7 +19,7 @@ jwt [path1]
 jwt [path2]
 ```
 
-> **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`(HMAC) *or* `JWT_PUBLIC_KEY`(RSA).  Otherwise, your tokens will silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated.
+> **Important** You must set the secret used to construct your token in an environment variable named `JWT_SECRET`(HMAC) *or* `JWT_PUBLIC_KEY`(RSA or ECDSA).  Otherwise, your tokens will silently fail validation.  Caddy will start without this value set, but it must be present at the time of the request for the signature to be validated.
 
 ### Advanced Syntax
 
@@ -180,11 +180,11 @@ It should be noted that `passthrough` will *always* allow access on the path pro
 
 ### Specifying Keys for Use in Validating Tokens
 
-There are two ways to specify key material used in validating tokens.  If you run Caddy in a container or via an init system like Systemd, you can directly specify your keys using the environment variables `JWT_SECRET` for HMAC or `JWT_PUBLIC_KEY` for RSA (PEM-encoded public key).  You cannot use both at the same time because it would open up a known security hole in the JWT specification.  When you run multiple sites, all would have to use the same keys to validate tokens.
+There are two ways to specify key material used in validating tokens.  If you run Caddy in a container or via an init system like Systemd, you can directly specify your keys using the environment variables `JWT_SECRET` for HMAC or `JWT_PUBLIC_KEY` for RSA or ECDSA (PEM-encoded public key).  You cannot use both at the same time because it would open up a known security hole in the JWT specification.  When you run multiple sites, all would have to use the same keys to validate tokens.
 
 When you run multiple sites from one Caddyfile, you can specify the location of a file that contains your PEM-encoded public key or your HMAC secret.  Once again, you cannot use both for the same site because it would cause a security hole.  However, you can use different methods on different sites because the configurations are independent.
 
-For RSA tokens:
+For RSA or ECDSA tokens:
 
 ```
 jwt {
