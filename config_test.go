@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"testing"
 
+	"fmt"
+	"os"
+
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 	. "github.com/onsi/ginkgo"
@@ -20,6 +23,10 @@ var EmptyNext = httpserver.HandlerFunc(func(w http.ResponseWriter, r *http.Reque
 })
 
 var _ = Describe("JWTAuth Config", func() {
+	BeforeEach(func() {
+		os.Unsetenv(ENV_PUBLIC_KEY)
+		os.Unsetenv(ENV_SECRET)
+	})
 	Describe("Parse the jwt config block", func() {
 
 		It("returns an appropriate middleware handler", func() {
@@ -80,8 +87,7 @@ var _ = Describe("JWTAuth Config", func() {
 				}`, false, []Rule{
 					Rule{
 						Path:        "/",
-						KeyFile:     []string{"/test/test.pem"},
-						KeyFileType: RSA,
+						KeyBackends: []KeyBackend{&LazyPublicKeyBackend{filename: "/test/test.pem"}},
 					},
 				}},
 				{`jwt {
@@ -90,8 +96,7 @@ var _ = Describe("JWTAuth Config", func() {
 				}`, false, []Rule{
 					Rule{
 						Path:        "/",
-						KeyFile:     []string{"/test/test.secret"},
-						KeyFileType: HMAC,
+						KeyBackends: []KeyBackend{&LazyHmacKeyBackend{filename: "/test/test.secret"}},
 					},
 				}},
 				{`jwt {
@@ -101,8 +106,7 @@ var _ = Describe("JWTAuth Config", func() {
 				}`, false, []Rule{
 					Rule{
 						Path:        "/",
-						KeyFile:     []string{"/test/test.secret", "/test/test2.secret"},
-						KeyFileType: HMAC,
+						KeyBackends: []KeyBackend{&LazyHmacKeyBackend{filename: "/test/test.secret"}, &LazyHmacKeyBackend{filename: "/test/test2.secret"}},
 					},
 				}},
 				{`jwt {
@@ -112,13 +116,12 @@ var _ = Describe("JWTAuth Config", func() {
 				}`, false, []Rule{
 					Rule{
 						Path:        "/",
-						KeyFile:     []string{"/test/test.pub", "/test/test2.pub"},
-						KeyFileType: RSA,
+						KeyBackends: []KeyBackend{&LazyPublicKeyBackend{filename: "/test/test.pub"}, &LazyPublicKeyBackend{filename: "/test/test2.pub"}},
 					},
 				}},
 				{`jwt {
 					path /
-					publickey /test/test.pem
+					publickey /test/test.pub
 					secret /test/test.secret
 				}`, true, nil},
 				{`jwt {
@@ -137,7 +140,7 @@ var _ = Describe("JWTAuth Config", func() {
 				if !test.shouldErr {
 					Expect(err).To(BeNil())
 				} else {
-					Expect(err).To(HaveOccurred())
+					Expect(err).To(HaveOccurred(), fmt.Sprintf("%v", test))
 				}
 				for idx, rule := range test.expect {
 					actualRule := actual[idx]
@@ -146,8 +149,7 @@ var _ = Describe("JWTAuth Config", func() {
 					Expect(rule.AccessRules).To(Equal(actualRule.AccessRules))
 					Expect(rule.ExceptedPaths).To(Equal(actualRule.ExceptedPaths))
 					Expect(rule.AllowRoot).To(Equal(actualRule.AllowRoot))
-					Expect(rule.KeyFile).To(Equal(actualRule.KeyFile))
-					Expect(rule.KeyFileType).To(Equal(actualRule.KeyFileType))
+					Expect(rule.KeyBackends).To(Equal(actualRule.KeyBackends), fmt.Sprintf("expected: %v\nactual: %v", rule, actualRule))
 				}
 
 			}

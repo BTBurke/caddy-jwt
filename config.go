@@ -18,15 +18,14 @@ const (
 	DENY
 )
 
-// EncryptionType distinguishes between RSA and HMAC key material when stored in a file
+// EncryptionType specifies the valid configuration for a path
 type EncryptionType int
 
 const (
-	// RSA is used to specify a file that contains a PEM-encoded public key
-	RSA EncryptionType = 1 << iota
-
-	// HMAC is used to specify a file that contains a HMAC-SHA secret
-	HMAC
+	// HS family of algorithms
+	HMAC EncryptionType = iota + 1
+	// RS and ES families of algorithms
+	PKI
 )
 
 // Auth represents configuration information for the middleware
@@ -43,8 +42,7 @@ type Rule struct {
 	AccessRules   []AccessRule
 	Redirect      string
 	AllowRoot     bool
-	KeyFile       []string
-	KeyFileType   EncryptionType
+	KeyBackends   []KeyBackend
 	Passthrough   bool
 	StripHeader   bool
 }
@@ -90,6 +88,11 @@ func Setup(c *caddy.Controller) error {
 }
 
 func parse(c *caddy.Controller) ([]Rule, error) {
+	defaultKeyBackends, err := NewDefaultKeyBackends()
+	if err != nil {
+		return nil, err
+	}
+
 	// This parses the following config blocks
 	/*
 		jwt /hello
@@ -105,7 +108,9 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 		case 0:
 			// no argument passed, check the config block
 
-			var r = Rule{}
+			var r = Rule{
+				KeyBackends: defaultKeyBackends,
+			}
 			for c.NextBlock() {
 				switch c.Val() {
 				case "path":
@@ -156,21 +161,21 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 					if len(args1) != 1 {
 						return nil, c.ArgErr()
 					}
-					if len(r.KeyFile) > 0 && r.KeyFileType != RSA {
-						return nil, c.ArgErr()
+					backend, err := NewLazyPublicKeyFileBackend(args1[0])
+					if err != nil {
+						return nil, c.Err(err.Error())
 					}
-					r.KeyFile = append(r.KeyFile, args1[0])
-					r.KeyFileType = RSA
+					r.KeyBackends = append(r.KeyBackends, backend)
 				case "secret":
 					args1 := c.RemainingArgs()
 					if len(args1) != 1 {
 						return nil, c.ArgErr()
 					}
-					if len(r.KeyFile) > 0 && r.KeyFileType != HMAC {
-						return nil, c.ArgErr()
+					backend, err := NewLazyHmacKeyBackend(args1[0])
+					if err != nil {
+						return nil, c.Err(err.Error())
 					}
-					r.KeyFile = append(r.KeyFile, args1[0])
-					r.KeyFileType = HMAC
+					r.KeyBackends = append(r.KeyBackends, backend)
 				case "passthrough":
 					r.Passthrough = true
 				case "strip_header":
@@ -179,7 +184,10 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 			}
 			rules = append(rules, r)
 		case 1:
-			rules = append(rules, Rule{Path: args[0]})
+			rules = append(rules, Rule{
+				Path:        args[0],
+				KeyBackends: defaultKeyBackends,
+			})
 			// one argument passed
 			if c.NextBlock() {
 				// path specified, no block required.
@@ -190,11 +198,29 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 			return nil, c.ArgErr()
 		}
 	}
-	// check all rules at least have a path
+
+	// check all rules at least have a path and consistent encryption config
 	for _, r := range rules {
 		if r.Path == "" {
 			return nil, fmt.Errorf("Each rule must have a path")
 		}
+		var encType EncryptionType
+		for _, e := range r.KeyBackends {
+			switch e.(type) {
+			case *LazyHmacKeyBackend:
+				if encType > 0 && encType != HMAC {
+					return nil, fmt.Errorf("Configuration does not have a consistent encryption type for path %s.  Cannot use both HMAC and PKI for a single path value.", r.Path)
+				}
+				encType = HMAC
+			case *LazyPublicKeyBackend:
+				if encType > 0 && encType != PKI {
+					return nil, fmt.Errorf("Configuration does not have a consistent encryption type for path %s.  Cannot use both HMAC and PKI for a single path value.", r.Path)
+				}
+				encType = PKI
+			}
+		}
+
 	}
+
 	return rules, nil
 }

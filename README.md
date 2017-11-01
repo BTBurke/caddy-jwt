@@ -70,7 +70,7 @@ JWTs consist of three parts: header, claims, and signature.  To properly constru
 ```json
 {
 "typ": "JWT",
-"alg": "HS256|HS384|HS512|RS256|RS384|RS512"
+"alg": "HS256|HS384|HS512|RS256|RS384|RS512|ES256|ES384|ES512"
 }
 ```
 
