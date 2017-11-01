@@ -2,40 +2,20 @@ package jwt
 
 import (
 	"bytes"
-	"crypto/rsa"
-	"errors"
 	"fmt"
-	"io/ioutil"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/dgrijalva/jwt-go"
-	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
-
-// global declaration of the backend to enable caching secret key material across requests
-// when keys are specified in the config file
-var b = backend{
-	cache: make(map[string]keycache),
-}
-
-// AuthBackend represents a backend interface that retrieves secret key material
-// to validate tokens
-type AuthBackend interface {
-	GetHMACSecret() (b []byte)
-	GetRSAPublicKey() (r *rsa.PublicKey)
-	IsConfigValid() (v bool)
-}
 
 func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 	// if the request path is any of the configured paths, validate JWT
 	for _, p := range h.Rules {
-		
+
 		// TODO: this is a hack to work our CVE in Caddy dealing with parsing
 		// malformed URLs.  Can be removed once upstream fix for path match
 		if r.URL.EscapedPath() == "" {
@@ -46,9 +26,9 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 			continue
 		}
 
-        if r.Method == "OPTIONS" {
-            continue
-        }
+		if r.Method == "OPTIONS" {
+			continue
+		}
 
 		// strip potentially spoofed claims
 		for header, _ := range r.Header {
@@ -83,50 +63,27 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 
 		var vToken *jwt.Token
 
-		switch {
-		case len(p.KeyFile) > 0:
+		if len(p.KeyBackends) <= 0 {
+			vToken, err = ValidateToken(uToken, &NoopKeyBackend{})
+		}
 
-			// Loop through all possible key files on disk, using cache
-			for _, keyfile := range p.KeyFile {
-				// Initialize a new caching layer if this is the first request to a protected path.
-				// Cache only operates when key material is stored on disk.  When using environment variables
-				// this has no effect.
-				_, ok := b.cache[keyfile]
-				if !ok {
-					b.cache[keyfile] = keycache{
-						KeyFile:     keyfile,
-						KeyFileType: p.KeyFileType,
-					}
-				}
-				b.current = b.cache[keyfile]
+		// Loop through all possible key files on disk, using cache
+		for _, keyBackend := range p.KeyBackends {
+			// Validate token
+			vToken, err = ValidateToken(uToken, keyBackend)
 
-				// Validate token
-				vToken, err = ValidateToken(uToken, b)
-
-				if err == nil {
-					// break on first correctly validated token
-					break
-				}
+			if err == nil {
+				// break on first correctly validated token
+				break
 			}
+		}
 
-			// Check last error of validating token.  If error still exists, no keyfiles matched
-			if err != nil || vToken == nil {
-				if p.Passthrough {
-					continue
-				}
-				return handleUnauthorized(w, r, p, h.Realm), nil
+		// Check last error of validating token.  If error still exists, no keyfiles matched
+		if err != nil || vToken == nil {
+			if p.Passthrough {
+				continue
 			}
-		default:
-			// when no keyfiles, use environment variables, clear cache first
-			b.current = keycache{}
-			vToken, err = ValidateToken(uToken, b)
-
-			if err != nil {
-				if p.Passthrough {
-					continue
-				}
-				return handleUnauthorized(w, r, p, h.Realm), nil
-			}
+			return handleUnauthorized(w, r, p, h.Realm), nil
 		}
 
 		vClaims, err := Flatten(vToken.Claims.(jwt.MapClaims), "", DotStyle)
@@ -236,191 +193,17 @@ func ExtractToken(r *http.Request) (string, error) {
 // malformed tokens, unknown/unspecified signing algorithms, missing secret key,
 // tokens that are not valid yet (i.e., 'nbf' field), tokens that are expired,
 // and tokens that fail signature verification (forged)
-func ValidateToken(uToken string, b AuthBackend) (*jwt.Token, error) {
+func ValidateToken(uToken string, keyBackend KeyBackend) (*jwt.Token, error) {
 	if len(uToken) == 0 {
 		return nil, fmt.Errorf("Token length is zero")
 	}
+	token, err := jwt.Parse(uToken, keyBackend.ProvideKey)
 
-	if !b.IsConfigValid() {
-		return nil, errors.New("No valid configuration for JWT validation found")
-	}
-
-	hmac := b.GetHMACSecret()
-	rsa := b.GetRSAPublicKey()
-
-	switch {
-	case hmac != nil:
-		token, err := jwt.Parse(uToken, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("HMAC: Unexpected signing method: %v", t.Header["alg"])
-			}
-			return hmac, nil
-		})
-
-		if err != nil {
-			return nil, err
-		}
-
-		return token, nil
-
-	case rsa != nil:
-		token, err := jwt.Parse(uToken, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
-				return nil, fmt.Errorf("RSA: Unexpected signing method: %v", t.Header["alg"])
-			}
-			return rsa, nil
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		return token, nil
-	default:
-		return nil, errors.New("No valid configuration for JWT validation found")
-	}
-
-}
-
-type backend struct {
-	current keycache
-	cache   map[string]keycache
-}
-
-type keycache struct {
-	KeyFile     string
-	KeyFileType EncryptionType
-	Key         []byte
-	ModifyTime  time.Time
-}
-
-func (b backend) GetHMACSecret() []byte {
-	switch b.current.KeyFileType {
-	case RSA:
-		return nil
-	case HMAC:
-		if secret, err := readKeyFromFile(&b); err == nil {
-			return secret
-		}
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			return nil
-		}
-		return []byte(secret)
-	default:
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			return nil
-		}
-		return []byte(secret)
-	}
-}
-
-func (b backend) GetRSAPublicKey() *rsa.PublicKey {
-
-	switch b.current.KeyFileType {
-	case HMAC:
-		return nil
-	case RSA:
-		if pem, err := readKeyFromFile(&b); err == nil {
-			rsaPub, err := jwt.ParseRSAPublicKeyFromPEM([]byte(pem))
-			if err != nil {
-				return nil
-			}
-			return rsaPub
-		}
-		pem := os.Getenv("JWT_PUBLIC_KEY")
-		if pem == "" {
-			return nil
-		}
-		rsaPub, err := jwt.ParseRSAPublicKeyFromPEM([]byte(pem))
-		if err != nil {
-			return nil
-		}
-		return rsaPub
-	default:
-		pem := os.Getenv("JWT_PUBLIC_KEY")
-		if pem == "" {
-			return nil
-		}
-		rsaPub, err := jwt.ParseRSAPublicKeyFromPEM([]byte(pem))
-		if err != nil {
-			return nil
-		}
-		return rsaPub
-	}
-}
-
-func (b backend) IsConfigValid() bool {
-
-	hmac := b.GetHMACSecret()
-	rsa := b.GetRSAPublicKey()
-
-	switch {
-	case hmac != nil && rsa == nil:
-		return true
-	case hmac == nil && rsa != nil:
-		return true
-	default:
-		return false
-	}
-}
-
-// readKeyFromFile attempts to read key material from the path specified in the config.
-// If the path is not absolute it will attempt to find it as a relative path from the
-// working directory.  To prevent issues with concurrent read/write to the filesystem
-// on every request, it will cache the result of the file read and only re-read the file
-// when the modification time is earlier than the cached value
-func readKeyFromFile(b *backend) ([]byte, error) {
-
-	var keyfilePath string
-	if path.IsAbs(b.current.KeyFile) {
-		keyfilePath = b.current.KeyFile
-	} else {
-		wd, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		keyfilePath = path.Join(wd, b.current.KeyFile)
-	}
-
-	finfo, err := os.Stat(keyfilePath)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return nil, err
 	}
 
-	cachehit, ok := b.cache[b.current.KeyFile]
-	if !ok {
-		key, err := ioutil.ReadFile(keyfilePath)
-		if err != nil {
-			return nil, err
-		}
-
-		b.cache[b.current.KeyFile] = keycache{
-			KeyFile:     b.current.KeyFile,
-			KeyFileType: b.current.KeyFileType,
-			Key:         key,
-			ModifyTime:  finfo.ModTime(),
-		}
-		b.current = b.cache[b.current.KeyFile]
-		return key, nil
-	}
-
-	if finfo.ModTime().After(cachehit.ModifyTime) {
-		key, err := ioutil.ReadFile(keyfilePath)
-		if err != nil {
-			return nil, err
-		}
-		b.cache[b.current.KeyFile] = keycache{
-			KeyFile:     b.current.KeyFile,
-			KeyFileType: b.current.KeyFileType,
-			Key:         key,
-			ModifyTime:  finfo.ModTime(),
-		}
-		b.current = b.cache[b.current.KeyFile]
-		return key, nil
-	}
-
-	return cachehit.Key, nil
+	return token, nil
 }
 
 // handleUnauthorized checks, which action should be performed if access was denied.
