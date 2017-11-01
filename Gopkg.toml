@@ -1,0 +1,10 @@
+ignored = [
+  "github.com/mholt/caddy",
+  "github.com/mholt/caddy/*",
+  "github.com/onsi/ginkgo",
+  "github.com/onsi/gomega"
+]
+
+[[constraint]]
+  name = "github.com/dgrijalva/jwt-go"
+  version = "3.1.0"
