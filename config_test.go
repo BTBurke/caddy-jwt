@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"fmt"
+	"os"
+
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"os"
 )
 
 func TestCaddyJwtConfig(t *testing.T) {
@@ -122,12 +123,7 @@ var _ = Describe("JWTAuth Config", func() {
 					path /
 					publickey /test/test.pub
 					secret /test/test.secret
-				}`, false, []Rule{
-					Rule{
-						Path:        "/",
-						KeyBackends: []KeyBackend{&LazyPublicKeyBackend{filename: "/test/test.pub"}, &LazyHmacKeyBackend{filename: "/test/test.secret"}},
-					},
-				}},
+				}`, true, nil},
 				{`jwt {
 					path /
 					passthrough

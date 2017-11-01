@@ -3,13 +3,14 @@ package jwt
 import (
 	"bytes"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/mholt/caddy/caddyhttp/httpserver"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
 func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
@@ -31,7 +32,7 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		}
 
 		// strip potentially spoofed claims
-		for header, _ := range r.Header {
+		for header := range r.Header {
 			if strings.HasPrefix(header, "Token-Claim-") {
 				r.Header.Del(header)
 			}

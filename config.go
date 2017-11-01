@@ -18,6 +18,16 @@ const (
 	DENY
 )
 
+// EncryptionType specifies the valid configuration for a path
+type EncryptionType int
+
+const (
+	// HS family of algorithms
+	HMAC EncryptionType = iota + 1
+	// RS and ES families of algorithms
+	PKI
+)
+
 // Auth represents configuration information for the middleware
 type Auth struct {
 	Rules []Rule
@@ -188,11 +198,29 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 			return nil, c.ArgErr()
 		}
 	}
-	// check all rules at least have a path
+
+	// check all rules at least have a path and consistent encryption config
 	for _, r := range rules {
 		if r.Path == "" {
 			return nil, fmt.Errorf("Each rule must have a path")
 		}
+		var encType EncryptionType
+		for _, e := range r.KeyBackends {
+			switch e.(type) {
+			case *LazyHmacKeyBackend:
+				if encType > 0 && encType != HMAC {
+					return nil, fmt.Errorf("Configuration does not have a consistent encryption type for path %s.  Cannot use both HMAC and PKI for a single path value.", r.Path)
+				}
+				encType = HMAC
+			case *LazyPublicKeyBackend:
+				if encType > 0 && encType != PKI {
+					return nil, fmt.Errorf("Configuration does not have a consistent encryption type for path %s.  Cannot use both HMAC and PKI for a single path value.", r.Path)
+				}
+				encType = PKI
+			}
+		}
+
 	}
+
 	return rules, nil
 }

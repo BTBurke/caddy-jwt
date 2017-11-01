@@ -4,11 +4,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"io/ioutil"
+
+	"github.com/dgrijalva/jwt-go"
 )
 
-func ReadPublicKey(pem []byte) (interface{}, error) {
+func ParsePublicKey(pem []byte) (interface{}, error) {
 	result, err := jwt.ParseRSAPublicKeyFromPEM(pem)
 	if err != nil {
 		result2, err2 := jwt.ParseECPublicKeyFromPEM(pem)
@@ -24,7 +25,7 @@ func ReadPublicKeyFile(filepath string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ReadPublicKey(content)
+	return ParsePublicKey(content)
 }
 
 func IsRsaPublicKey(key interface{}) bool {
