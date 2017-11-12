@@ -99,7 +99,7 @@ func (instance *LazyHmacKeyBackend) ProvideKey(token *jwt.Token) (interface{}, e
 func (instance *LazyHmacKeyBackend) loadIfRequired() error {
 	finfo, err := os.Stat(instance.filename)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("public key file '%s' does not exist", instance.filename)
+		return fmt.Errorf("secret file '%s' does not exist", instance.filename)
 	}
 	if instance.secret == nil || !finfo.ModTime().Equal(instance.modTime) {
 		instance.secret, err = ioutil.ReadFile(instance.filename)
