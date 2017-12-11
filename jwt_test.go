@@ -566,7 +566,7 @@ var _ = Describe("Auth", func() {
 		rw := Auth{
 			Next: httpserver.HandlerFunc(passThruHandler),
 			Rules: []Rule{
-				Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, KeyBackends: []KeyBackend{backend}},
+				Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, IndividualClaimHeaders: true, KeyBackends: []KeyBackend{backend}},
 			},
 			Realm: "testing.com",
 		}
@@ -728,7 +728,7 @@ var _ = Describe("Auth", func() {
 			rw := Auth{
 				Next: httpserver.HandlerFunc(passThruHandler),
 				Rules: []Rule{
-					Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, StripHeader: true, KeyBackends: []KeyBackend{backend}},
+					Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, IndividualClaimHeaders: true, StripHeader: true, KeyBackends: []KeyBackend{backend}},
 				},
 				Realm: "testing.com",
 			}

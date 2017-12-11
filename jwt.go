@@ -120,45 +120,50 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		}
 
 		// set claims as separate headers for downstream to consume
-		for claim, value := range vClaims {
-			var headerName string
-			switch p.StripHeader {
-			case true:
-				stripped := strings.SplitAfter(claim, "/")
-				finalStrip := stripped[len(stripped)-1]
-				headerName = "Token-Claim-" + modTitleCase(finalStrip)
-			default:
-				escaped := url.PathEscape(claim)
-				headerName = "Token-Claim-" + modTitleCase(escaped)
-			}
-
-			switch v := value.(type) {
-			case string:
-				r.Header.Set(headerName, v)
-			case int64:
-				r.Header.Set(headerName, strconv.FormatInt(v, 10))
-			case bool:
-				r.Header.Set(headerName, strconv.FormatBool(v))
-			case int32:
-				r.Header.Set(headerName, strconv.FormatInt(int64(v), 10))
-			case float32:
-				r.Header.Set(headerName, strconv.FormatFloat(float64(v), 'f', -1, 32))
-			case float64:
-				r.Header.Set(headerName, strconv.FormatFloat(v, 'f', -1, 64))
-			case []interface{}:
-				b := bytes.NewBufferString("")
-				for i, item := range v {
-					if i > 0 {
-						b.WriteString(",")
-					}
-					b.WriteString(fmt.Sprintf("%v", item))
+		if p.IndividualClaimHeaders {
+			for claim, value := range vClaims {
+				var headerName string
+				switch p.StripHeader {
+				case true:
+					stripped := strings.SplitAfter(claim, "/")
+					finalStrip := stripped[len(stripped)-1]
+					headerName = "Token-Claim-" + modTitleCase(finalStrip)
+				default:
+					escaped := url.PathEscape(claim)
+					headerName = "Token-Claim-" + modTitleCase(escaped)
 				}
-				r.Header.Set(headerName, b.String())
-			default:
-				// ignore, because, JWT spec says in https://tools.ietf.org/html/rfc7519#section-4
-				//     all claims that are not understood
-				//     by implementations MUST be ignored.
+
+				switch v := value.(type) {
+				case string:
+					r.Header.Set(headerName, v)
+				case int64:
+					r.Header.Set(headerName, strconv.FormatInt(v, 10))
+				case bool:
+					r.Header.Set(headerName, strconv.FormatBool(v))
+				case int32:
+					r.Header.Set(headerName, strconv.FormatInt(int64(v), 10))
+				case float32:
+					r.Header.Set(headerName, strconv.FormatFloat(float64(v), 'f', -1, 32))
+				case float64:
+					r.Header.Set(headerName, strconv.FormatFloat(v, 'f', -1, 64))
+				case []interface{}:
+					b := bytes.NewBufferString("")
+					for i, item := range v {
+						if i > 0 {
+							b.WriteString(",")
+						}
+						b.WriteString(fmt.Sprintf("%v", item))
+					}
+					r.Header.Set(headerName, b.String())
+				default:
+					// ignore, because, JWT spec says in https://tools.ietf.org/html/rfc7519#section-4
+					//     all claims that are not understood
+					//     by implementations MUST be ignored.
+				}
 			}
+		}
+		if p.SingleClaimHeader {
+			r.Header.Set("Token-Claims", strings.Split(uToken, ".")[1])
 		}
 
 		return h.Next.ServeHTTP(w, r)

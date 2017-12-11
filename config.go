@@ -37,14 +37,16 @@ type Auth struct {
 
 // Rule represents the configuration for a site
 type Rule struct {
-	Path          string
-	ExceptedPaths []string
-	AccessRules   []AccessRule
-	Redirect      string
-	AllowRoot     bool
-	KeyBackends   []KeyBackend
-	Passthrough   bool
-	StripHeader   bool
+	Path                   string
+	ExceptedPaths          []string
+	AccessRules            []AccessRule
+	Redirect               string
+	AllowRoot              bool
+	KeyBackends            []KeyBackend
+	Passthrough            bool
+	StripHeader            bool
+	IndividualClaimHeaders bool
+	SingleClaimHeader      bool
 }
 
 // AccessRule represents a single ALLOW/DENY rule based on the value of a claim in
@@ -180,6 +182,10 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 					r.Passthrough = true
 				case "strip_header":
 					r.StripHeader = true
+				case "individual_claim_headers":
+					r.IndividualClaimHeaders = true
+				case "single_claim_header":
+					r.SingleClaimHeader = true
 				}
 			}
 			rules = append(rules, r)
