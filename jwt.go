@@ -33,7 +33,7 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 
 		// strip potentially spoofed claims
 		for header := range r.Header {
-			if strings.HasPrefix(header, "Token-Claim-") {
+			if strings.HasPrefix(header, "Token-Claim-") || header == "Token-Claims" {
 				r.Header.Del(header)
 			}
 		}
