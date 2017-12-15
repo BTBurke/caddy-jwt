@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
@@ -30,21 +31,29 @@ const (
 
 // Auth represents configuration information for the middleware
 type Auth struct {
-	Rules []Rule
-	Next  httpserver.Handler
-	Realm string
+	Rules      []Rule
+	Next       httpserver.Handler
+	Realm      string
+	HeaderUtil HeaderUtil
+}
+
+type HeaderUtil interface {
+	stripSpoofHeaders(r *http.Request)
+	setClaimHeaders(r *http.Request, rule Rule, vClaims map[string]interface{}, uToken string)
 }
 
 // Rule represents the configuration for a site
 type Rule struct {
-	Path          string
-	ExceptedPaths []string
-	AccessRules   []AccessRule
-	Redirect      string
-	AllowRoot     bool
-	KeyBackends   []KeyBackend
-	Passthrough   bool
-	StripHeader   bool
+	Path                   string
+	ExceptedPaths          []string
+	AccessRules            []AccessRule
+	Redirect               string
+	AllowRoot              bool
+	KeyBackends            []KeyBackend
+	Passthrough            bool
+	StripHeader            bool
+	IndividualClaimHeaders bool
+	SingleClaimHeader      bool
 }
 
 // AccessRule represents a single ALLOW/DENY rule based on the value of a claim in
@@ -78,9 +87,10 @@ func Setup(c *caddy.Controller) error {
 
 	httpserver.GetConfig(c).AddMiddleware(func(next httpserver.Handler) httpserver.Handler {
 		return &Auth{
-			Rules: rules,
-			Next:  next,
-			Realm: host,
+			Rules:      rules,
+			Next:       next,
+			Realm:      host,
+			HeaderUtil: NewHeaderUtilImpl(),
 		}
 	})
 
@@ -180,6 +190,10 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 					r.Passthrough = true
 				case "strip_header":
 					r.StripHeader = true
+				case "individual_claim_headers":
+					r.IndividualClaimHeaders = true
+				case "single_claim_header":
+					r.SingleClaimHeader = true
 				}
 			}
 			rules = append(rules, r)
@@ -219,7 +233,6 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 				encType = PKI
 			}
 		}
-
 	}
 
 	return rules, nil

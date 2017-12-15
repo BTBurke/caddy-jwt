@@ -133,6 +133,17 @@ var _ = Describe("JWTAuth Config", func() {
 						Passthrough: true,
 					},
 				}},
+				{`jwt {
+					path /
+					individual_claim_headers
+					single_claim_header
+				}`, false, []Rule{
+					Rule{
+						Path: "/",
+						IndividualClaimHeaders: true,
+						SingleClaimHeader:      true,
+					},
+				}},
 			}
 			for _, test := range tests {
 				c := caddy.NewTestController("http", test.input)
