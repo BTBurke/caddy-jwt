@@ -149,6 +149,21 @@ func setPublicKeyAndTryGetEnv(value string) *PublicKeyBackend {
 	return backends[0].(*PublicKeyBackend)
 }
 
+func NewTestHeaderUtilImpl() *TestHeaderUtilImpl {
+	return &TestHeaderUtilImpl{}
+}
+
+type TestHeaderUtilImpl struct {
+	stripSpoofHeadersCalls int
+}
+
+func (h *TestHeaderUtilImpl) stripSpoofHeaders(r *http.Request) {
+	h.stripSpoofHeadersCalls = h.stripSpoofHeadersCalls + 1
+}
+
+func (h *TestHeaderUtilImpl) setClaimHeaders(r *http.Request, rule Rule, vClaims map[string]interface{}, uToken string) {
+}
+
 var _ = Describe("Auth", func() {
 	AfterEach(func() {
 		os.Unsetenv(ENV_PUBLIC_KEY)
@@ -433,7 +448,8 @@ var _ = Describe("Auth", func() {
 
 			rec := httptest.NewRecorder()
 			rw := Auth{
-				Rules: []Rule{{Path: "/testing", Redirect: "/login"}},
+				Rules:      []Rule{{Path: "/testing", Redirect: "/login"}},
+				HeaderUtil: NewTestHeaderUtilImpl(),
 			}
 			result, err := rw.ServeHTTP(rec, req)
 			if err != nil {
@@ -449,7 +465,8 @@ var _ = Describe("Auth", func() {
 
 			rec := httptest.NewRecorder()
 			rw := Auth{
-				Rules: []Rule{{Path: "/testing", Redirect: "/login?backTo={rewrite_uri}"}},
+				Rules:      []Rule{{Path: "/testing", Redirect: "/login?backTo={rewrite_uri}"}},
+				HeaderUtil: NewTestHeaderUtilImpl(),
 			}
 			result, err := rw.ServeHTTP(rec, req)
 			if err != nil {
@@ -468,7 +485,8 @@ var _ = Describe("Auth", func() {
 				Rules: []Rule{
 					Rule{Path: "/"},
 				},
-				Realm: "testing.com",
+				Realm:      "testing.com",
+				HeaderUtil: NewTestHeaderUtilImpl(),
 			}
 			req, err := http.NewRequest("GET", "//testing", nil)
 
@@ -487,7 +505,8 @@ var _ = Describe("Auth", func() {
 				Rules: []Rule{
 					Rule{Path: "/"},
 				},
-				Realm: "testing.com",
+				Realm:      "testing.com",
+				HeaderUtil: NewTestHeaderUtilImpl(),
 			}
 			req, err := http.NewRequest("GET", "//", nil)
 
@@ -507,7 +526,8 @@ var _ = Describe("Auth", func() {
 				Rules: []Rule{
 					Rule{Path: "/testing/test"},
 				},
-				Realm: "testing.com",
+				Realm:      "testing.com",
+				HeaderUtil: NewTestHeaderUtilImpl(),
 			}
 			req, err := http.NewRequest("GET", "/testing//test", nil)
 
@@ -527,7 +547,8 @@ var _ = Describe("Auth", func() {
 				Rules: []Rule{
 					Rule{Path: "/testing/test/secret"},
 				},
-				Realm: "testing.com",
+				Realm:      "testing.com",
+				HeaderUtil: NewTestHeaderUtilImpl(),
 			}
 			req, err := http.NewRequest("GET", "/testing//test/secret", nil)
 
@@ -546,7 +567,8 @@ var _ = Describe("Auth", func() {
 				Rules: []Rule{
 					Rule{Path: "/testing/test/secret"},
 				},
-				Realm: "testing.com",
+				Realm:      "testing.com",
+				HeaderUtil: NewTestHeaderUtilImpl(),
 			}
 			req, err := http.NewRequest("GET", "/testing/test//secret", nil)
 
@@ -568,7 +590,8 @@ var _ = Describe("Auth", func() {
 			Rules: []Rule{
 				Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, IndividualClaimHeaders: true, KeyBackends: []KeyBackend{backend}},
 			},
-			Realm: "testing.com",
+			Realm:      "testing.com",
+			HeaderUtil: NewTestHeaderUtilImpl(),
 		}
 		token := jwt.New(jwt.SigningMethodHS256)
 		token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
@@ -693,91 +716,6 @@ var _ = Describe("Auth", func() {
 			Expect(result).To(Equal(http.StatusOK))
 		})
 
-		It("set claims as individual headers", func() {
-			req, err := http.NewRequest("GET", "/testing", nil)
-			req.Header.Set("Authorization", strings.Join([]string{"Bearer", validToken}, " "))
-
-			rec := httptest.NewRecorder()
-			result, err := rw.ServeHTTP(rec, req)
-			if err != nil {
-				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
-			}
-
-			Expect(result).To(Equal(http.StatusOK))
-			expectedHeaders := map[string]string{
-				"Token-Claim-User":                       "test",
-				"Token-Claim-Bool":                       "true",
-				"Token-Claim-Float32":                    "3.14159",
-				"Token-Claim-Float64":                    "3.14159",
-				"Token-Claim-Int32":                      "10",
-				"Token-Claim-List":                       "foo,bar,bazz",
-				"Token-Claim-Http:%2F%2Ftest.com%2Fpath": "true",
-			}
-			returnedHeaders := rec.Header()
-			for head, value := range expectedHeaders {
-				val, ok := returnedHeaders[head]
-				if !ok {
-					Fail(fmt.Sprintf("expected header not in response: %v. Have: %v", head, returnedHeaders))
-				}
-				Expect(val[0]).To(Equal(value))
-			}
-
-		})
-		Describe("Strip headers when set", func() {
-			backend := setSecretAndGetEnv("secret")
-			rw := Auth{
-				Next: httpserver.HandlerFunc(passThruHandler),
-				Rules: []Rule{
-					Rule{Path: "/testing", ExceptedPaths: []string{"/testing/excepted"}, IndividualClaimHeaders: true, StripHeader: true, KeyBackends: []KeyBackend{backend}},
-				},
-				Realm: "testing.com",
-			}
-			token := jwt.New(jwt.SigningMethodHS256)
-			token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Hour * 1).Unix()
-			token.Claims.(jwt.MapClaims)["user"] = "test"
-			token.Claims.(jwt.MapClaims)["int32"] = int32(10)
-			token.Claims.(jwt.MapClaims)["float32"] = float32(3.14159)
-			token.Claims.(jwt.MapClaims)["float64"] = float64(3.14159)
-			token.Claims.(jwt.MapClaims)["bool"] = true
-			token.Claims.(jwt.MapClaims)["list"] = []string{"foo", "bar", "bazz"}
-			token.Claims.(jwt.MapClaims)["http://test.com/path.me"] = "true"
-
-			validToken, err := token.SignedString([]byte("secret"))
-			if err != nil {
-				Fail(fmt.Sprintf("unexpected error constructing token: %s", err))
-			}
-
-			It("set claims as individual headers, and strips if necessary", func() {
-				req, err := http.NewRequest("GET", "/testing", nil)
-				req.Header.Set("Authorization", strings.Join([]string{"Bearer", validToken}, " "))
-
-				rec := httptest.NewRecorder()
-				result, err := rw.ServeHTTP(rec, req)
-				if err != nil {
-					Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
-				}
-
-				Expect(result).To(Equal(http.StatusOK))
-				expectedHeaders := map[string]string{
-					"Token-Claim-User":    "test",
-					"Token-Claim-Bool":    "true",
-					"Token-Claim-Float32": "3.14159",
-					"Token-Claim-Float64": "3.14159",
-					"Token-Claim-Int32":   "10",
-					"Token-Claim-List":    "foo,bar,bazz",
-					"Token-Claim-Path.me": "true",
-				}
-				returnedHeaders := rec.Header()
-				for head, value := range expectedHeaders {
-					val, ok := returnedHeaders[head]
-					if !ok {
-						Fail(fmt.Sprintf("expected header not in response: %v. Have: %v", head, returnedHeaders))
-					}
-					Expect(val[0]).To(Equal(value))
-				}
-
-			})
-		})
 		Describe("Function correctly as an authorization middleware for complex access rules", func() {
 			backend := setSecretAndGetEnv("secret")
 			tokenUser := genToken("secret", map[string]interface{}{"user": "test", "role": "member"})
@@ -802,8 +740,9 @@ var _ = Describe("Auth", func() {
 
 			It("should allow authorization based on a specific claim value", func() {
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{ruleAllowUser},
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{ruleAllowUser},
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -819,9 +758,10 @@ var _ = Describe("Auth", func() {
 			})
 			It("should deny authorization based on a specific claim value that doesnt match", func() {
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{ruleAllowUser},
-					Realm: "testing.com",
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{ruleAllowUser},
+					Realm:      "testing.com",
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -840,8 +780,9 @@ var _ = Describe("Auth", func() {
 				// tests situation where user is denied based on wrong role
 				// but subsequent allow based on username is ok
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: ruleAllowRoleAllowUser,
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      ruleAllowRoleAllowUser,
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -859,8 +800,9 @@ var _ = Describe("Auth", func() {
 				// test situation where default deny for a particular role
 				// subsequent rule based on user ok
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: ruleDenyRoleAllowUser,
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      ruleDenyRoleAllowUser,
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -879,9 +821,10 @@ var _ = Describe("Auth", func() {
 				// tests situation where user is denied based on wrong role
 				// but subsequent allow based on username is ok
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{ruleDenyRole},
-					Realm: "testing.com",
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{ruleDenyRole},
+					Realm:      "testing.com",
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -901,8 +844,9 @@ var _ = Describe("Auth", func() {
 				// tests situation where user is denied based on wrong role
 				// but subsequent allow based on username is ok
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{ruleDenyRole},
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{ruleDenyRole},
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -942,8 +886,9 @@ var _ = Describe("Auth", func() {
 
 			It("should allow claim values, which are part of a list", func() {
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{ruleAllowUser},
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{ruleAllowUser},
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -959,9 +904,10 @@ var _ = Describe("Auth", func() {
 			})
 			It("should deny claim values, which are part of a list", func() {
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{ruleAllowUser},
-					Realm: "testing.com",
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{ruleAllowUser},
+					Realm:      "testing.com",
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 
 				req, err := http.NewRequest("GET", "/testing", nil)
@@ -980,9 +926,11 @@ var _ = Describe("Auth", func() {
 
 		Describe("Prevent spoofing of claims headers", func() {
 			It("should remove spoofed claims with no JWT provided", func() {
+				headerUtil := NewTestHeaderUtilImpl()
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{{Path: "/testing", Passthrough: true}},
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{{Path: "/testing", Passthrough: true}},
+					HeaderUtil: headerUtil,
 				}
 				req, err := http.NewRequest("GET", "/testing", nil)
 				req.Header.Set("Token-Claim-Spoofed", "spoof")
@@ -994,13 +942,15 @@ var _ = Describe("Auth", func() {
 				}
 
 				Expect(result).To(Equal(http.StatusOK))
-				Expect(rec.Result().Header.Get("Token-Claim-Spoofed")).To(Equal(""))
+				Expect(headerUtil.stripSpoofHeadersCalls).To(Equal(1))
 			})
 
 			It("should remove spoofed claims with valid token provided", func() {
+				headerUtil := NewTestHeaderUtilImpl()
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{{Path: "/testing", Passthrough: true}},
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{{Path: "/testing", Passthrough: true}},
+					HeaderUtil: headerUtil,
 				}
 				req, err := http.NewRequest("GET", "/testing", nil)
 				req.Header.Set("Token-Claim-Spoofed", "spoof")
@@ -1013,13 +963,15 @@ var _ = Describe("Auth", func() {
 				}
 
 				Expect(result).To(Equal(http.StatusOK))
-				Expect(rec.Result().Header.Get("Token-Claim-Spoofed")).To(Equal(""))
+				Expect(headerUtil.stripSpoofHeadersCalls).To(Equal(1))
 			})
 
 			It("should remove spoofed claims with invalid token provided", func() {
+				headerUtil := NewTestHeaderUtilImpl()
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{{Path: "/testing", Passthrough: true}},
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{{Path: "/testing", Passthrough: true}},
+					HeaderUtil: headerUtil,
 				}
 				req, err := http.NewRequest("GET", "/testing", nil)
 				req.Header.Set("Token-Claim-Spoofed", "spoof")
@@ -1032,7 +984,7 @@ var _ = Describe("Auth", func() {
 				}
 
 				Expect(result).To(Equal(http.StatusOK))
-				Expect(rec.Result().Header.Get("Token-Claim-Spoofed")).To(Equal(""))
+				Expect(headerUtil.stripSpoofHeadersCalls).To(Equal(1))
 			})
 		})
 
@@ -1060,8 +1012,9 @@ var _ = Describe("Auth", func() {
 				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
 
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{{Path: "/testing", KeyBackends: []KeyBackend{backend1, backend2}}},
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{{Path: "/testing", KeyBackends: []KeyBackend{backend1, backend2}}},
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 				req, err := http.NewRequest("GET", "/testing", nil)
 				req.Header.Set("Authorization", strings.Join([]string{"Bearer", token}, " "))
@@ -1097,8 +1050,9 @@ var _ = Describe("Auth", func() {
 				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
 
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{{Path: "/testing", KeyBackends: []KeyBackend{backend2, backend2, backend2, backend1}}},
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{{Path: "/testing", KeyBackends: []KeyBackend{backend2, backend2, backend2, backend1}}},
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 				req, err := http.NewRequest("GET", "/testing", nil)
 				req.Header.Set("Authorization", strings.Join([]string{"Bearer", token}, " "))
@@ -1125,8 +1079,9 @@ var _ = Describe("Auth", func() {
 				token := genRSAToken(rsaPrivateKey, map[string]interface{}{"test": "test"})
 
 				rw := Auth{
-					Next:  httpserver.HandlerFunc(passThruHandler),
-					Rules: []Rule{{Path: "/testing", KeyBackends: []KeyBackend{backend2, backend2, backend2}}},
+					Next:       httpserver.HandlerFunc(passThruHandler),
+					Rules:      []Rule{{Path: "/testing", KeyBackends: []KeyBackend{backend2, backend2, backend2}}},
+					HeaderUtil: NewTestHeaderUtilImpl(),
 				}
 				req, err := http.NewRequest("GET", "/testing", nil)
 				req.Header.Set("Authorization", strings.Join([]string{"Bearer", token}, " "))

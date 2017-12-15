@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
@@ -30,9 +31,15 @@ const (
 
 // Auth represents configuration information for the middleware
 type Auth struct {
-	Rules []Rule
-	Next  httpserver.Handler
-	Realm string
+	Rules      []Rule
+	Next       httpserver.Handler
+	Realm      string
+	HeaderUtil HeaderUtil
+}
+
+type HeaderUtil interface {
+	stripSpoofHeaders(r *http.Request)
+	setClaimHeaders(r *http.Request, rule Rule, vClaims map[string]interface{}, uToken string)
 }
 
 // Rule represents the configuration for a site
@@ -80,9 +87,10 @@ func Setup(c *caddy.Controller) error {
 
 	httpserver.GetConfig(c).AddMiddleware(func(next httpserver.Handler) httpserver.Handler {
 		return &Auth{
-			Rules: rules,
-			Next:  next,
-			Realm: host,
+			Rules:      rules,
+			Next:       next,
+			Realm:      host,
+			HeaderUtil: NewHeaderUtilImpl(),
 		}
 	})
 
@@ -225,7 +233,6 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 				encType = PKI
 			}
 		}
-
 	}
 
 	return rules, nil
