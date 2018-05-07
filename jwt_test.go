@@ -293,25 +293,31 @@ var _ = Describe("Auth", func() {
 		It("should return the token if set in the Auhorization header", func() {
 			req, _ := http.NewRequest("GET", "/testing", nil)
 			req.Header.Set("Authorization", strings.Join([]string{"Bearer", validToken}, " "))
-			token, err := ExtractToken(req)
-			Expect(err).To(BeNil())
+			token := ExtractTokens(req)[0]
 			Expect(token).To(Equal(validToken))
 		})
 
 		It("should return the token if set in a cookie", func() {
 			req, _ := http.NewRequest("GET", "/testing", nil)
 			req.AddCookie(&http.Cookie{Name: "jwt_token", Value: validToken})
-			token, err := ExtractToken(req)
-			Expect(err).To(BeNil())
+			token := ExtractTokens(req)[0]
 			Expect(token).To(Equal(validToken))
 		})
 
 		It("should return the token if set as query parameter", func() {
 			url := strings.Join([]string{"/testing?token=", validToken}, "")
 			req, _ := http.NewRequest("GET", url, nil)
-			token, err := ExtractToken(req)
-			Expect(err).To(BeNil())
+			token := ExtractTokens(req)[0]
 			Expect(token).To(Equal(validToken))
+		})
+
+		It("should return all valid token within the request", func() {
+			url := strings.Join([]string{"/testing?token=", validToken}, "")
+			req, _ := http.NewRequest("GET", url, nil)
+			req.Header.Set("Authorization", strings.Join([]string{"Bearer", validToken}, " "))
+			req.AddCookie(&http.Cookie{Name: "jwt_token", Value: validToken})
+			tokens := ExtractTokens(req)
+			Expect(tokens).To(Equal([]string{validToken, validToken, validToken}))
 		})
 
 	})

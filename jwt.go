@@ -54,8 +54,8 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		}
 
 		// Path matches, look for unvalidated token
-		uToken, err := ExtractToken(r)
-		if err != nil {
+		uTokens := ExtractTokens(r)
+		if len(uTokens) == 0 {
 			if p.Passthrough {
 				continue
 			}
@@ -63,16 +63,23 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		}
 
 		var vToken *jwt.Token
+		var err error
 
-		if len(p.KeyBackends) <= 0 {
-			vToken, err = ValidateToken(uToken, &NoopKeyBackend{})
-		}
+		for _, uToken := range uTokens {
+			if len(p.KeyBackends) <= 0 {
+				vToken, err = ValidateToken(uToken, &NoopKeyBackend{})
+			}
 
-		// Loop through all possible key files on disk, using cache
-		for _, keyBackend := range p.KeyBackends {
-			// Validate token
-			vToken, err = ValidateToken(uToken, keyBackend)
+			// Loop through all possible key files on disk, using cache
+			for _, keyBackend := range p.KeyBackends {
+				// Validate token
+				vToken, err = ValidateToken(uToken, keyBackend)
 
+				if err == nil {
+					// break on first succesful validation
+					break
+				}
+			}
 			if err == nil {
 				// break on first correctly validated token
 				break
@@ -167,26 +174,28 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 	return h.Next.ServeHTTP(w, r)
 }
 
-// ExtractToken will find a JWT token passed one of three ways: (1) as the Authorization
+// ExtractTokens will find JWT tokens passed in any of three ways: (1) as the Authorization
 // header in the form `Bearer <JWT Token>`; (2) as a cookie named `jwt_token`; (3) as
 // a URL query paramter of the form https://example.com?token=<JWT token>
-func ExtractToken(r *http.Request) (string, error) {
+func ExtractTokens(r *http.Request) ([]string) {
+	var tokens []string
+
 	jwtHeader := strings.Split(r.Header.Get("Authorization"), " ")
 	if jwtHeader[0] == "Bearer" && len(jwtHeader) == 2 {
-		return jwtHeader[1], nil
+		tokens = append(tokens, jwtHeader[1])
 	}
 
 	jwtCookie, err := r.Cookie("jwt_token")
 	if err == nil {
-		return jwtCookie.Value, nil
+		tokens = append(tokens, jwtCookie.Value)
 	}
 
 	jwtQuery := r.URL.Query().Get("token")
 	if jwtQuery != "" {
-		return jwtQuery, nil
+		tokens = append(tokens, jwtQuery)
 	}
 
-	return "", fmt.Errorf("no token found")
+	return tokens
 }
 
 // ValidateToken will return a parsed token if it passes validation, or an
