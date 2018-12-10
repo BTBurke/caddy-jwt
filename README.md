@@ -53,7 +53,7 @@ If the optional `redirect` is set, the middleware will send a redirect to the su
 
 ### Ways of passing a token for validation
 
-There are three ways to pass the token for validation: (1) in the `Authorization` header, (2) as a cookie, and (3) as a URL query parameter.  The middleware will **by defaul** look in those places in the order listed and return `401` if it can't find any token.
+There are three ways to pass the token for validation: (1) in the `Authorization` header, (2) as a cookie, and (3) as a URL query parameter.  The middleware will **by default** look in those places in the order listed and return `401` if it can't find any token.
 
 | Method               | Format                          |
 | -------------------- | ------------------------------- |
