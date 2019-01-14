@@ -1,15 +1,15 @@
 language: go
 
 go:
-  - 1.8
+  - 1.11.4
 
 install:
   - go get -t ./...
   - go get github.com/golang/lint/golint
 
 script:
-  - go vet ./
-  - go test -race ./
+  - go vet ./...
+  - go test -race ./...
 
 after_script:
-  - golint ./
+  - golint ./...
