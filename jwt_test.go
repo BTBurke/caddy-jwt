@@ -11,7 +11,7 @@ import (
 
 	"io/ioutil"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -288,12 +288,14 @@ var _ = Describe("Auth", func() {
 		})
 	})
 
-	Describe("Find tokens in the request", func() {
-
+	Describe("Find tokens in the request with a default token source config", func() {
+		// Empty list should trigger the use of the default config.
+		// This also tests each token source type individually.
+		emptyTssList := []TokenSource{}
 		It("should return the token if set in the Auhorization header", func() {
 			req, _ := http.NewRequest("GET", "/testing", nil)
 			req.Header.Set("Authorization", strings.Join([]string{"Bearer", validToken}, " "))
-			token, err := ExtractToken(req)
+			token, err := ExtractToken(emptyTssList, req)
 			Expect(err).To(BeNil())
 			Expect(token).To(Equal(validToken))
 		})
@@ -301,7 +303,7 @@ var _ = Describe("Auth", func() {
 		It("should return the token if set in a cookie", func() {
 			req, _ := http.NewRequest("GET", "/testing", nil)
 			req.AddCookie(&http.Cookie{Name: "jwt_token", Value: validToken})
-			token, err := ExtractToken(req)
+			token, err := ExtractToken(emptyTssList, req)
 			Expect(err).To(BeNil())
 			Expect(token).To(Equal(validToken))
 		})
@@ -309,11 +311,35 @@ var _ = Describe("Auth", func() {
 		It("should return the token if set as query parameter", func() {
 			url := strings.Join([]string{"/testing?token=", validToken}, "")
 			req, _ := http.NewRequest("GET", url, nil)
-			token, err := ExtractToken(req)
+			token, err := ExtractToken(emptyTssList, req)
 			Expect(err).To(BeNil())
 			Expect(token).To(Equal(validToken))
 		})
+	})
 
+	Describe("Find tokens in the request with a custom token source config", func() {
+		It("should return the token from the first source that finds it in the request", func() {
+			config := []TokenSource{
+				&QueryTokenSource{
+					ParamName: "custom_param",
+				},
+				&CookieTokenSource{
+					CookieName: "custom_jwt_token",
+				},
+				&HeaderTokenSource{},
+			}
+			// These should be ignored as their names don't match.
+			url := strings.Join([]string{"/testing?token=", malformedToken}, "")
+			req, _ := http.NewRequest("GET", url, nil)
+			req.AddCookie(&http.Cookie{Name: "jwt_token", Value: malformedToken})
+			// This should be ignored as it is the last in the config list.
+			req.Header.Set("Authorization", strings.Join([]string{"Bearer", malformedToken}, " "))
+			// This should be extracted.
+			req.AddCookie(&http.Cookie{Name: "custom_jwt_token", Value: validToken})
+			token, err := ExtractToken(config, req)
+			Expect(err).To(BeNil())
+			Expect(token).To(Equal(validToken))
+		})
 	})
 
 	Describe("Validate tokens in accordance with the JWT standard", func() {

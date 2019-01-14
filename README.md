@@ -53,13 +53,25 @@ If the optional `redirect` is set, the middleware will send a redirect to the su
 
 ### Ways of passing a token for validation
 
-There are three ways to pass the token for validation: (1) in the `Authorization` header, (2) as a cookie, and (3) as a URL query parameter.  The middleware will look in those places in the order listed and return `401` if it can't find any token.
+There are three ways to pass the token for validation: (1) in the `Authorization` header, (2) as a cookie, and (3) as a URL query parameter.  The middleware will **by default** look in those places in the order listed and return `401` if it can't find any token.
 
 | Method               | Format                          |
 | -------------------- | ------------------------------- |
 | Authorization Header | `Authorization: Bearer <token>` |
 | Cookie               | `"jwt_token": <token>`          |
 | URL Query Parameter  | `/protected?token=<token>`      |
+
+It is possible to customize what token sources should be used via the `token_source` rule. If at one or more `token_source` rules are specified, they will be used instead of the default in the given order. For example, to
+do the same validation as default, but with the different cookie and query param  names, the user could use the following snippet:
+
+```
+jwt {
+   ...
+   token_source header
+   token_source cookie my_cookie_name
+   token_source query_param my_param_name
+}
+```
 
 ### Constructing a valid token
 

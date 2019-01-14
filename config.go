@@ -45,6 +45,7 @@ type Rule struct {
 	KeyBackends   []KeyBackend
 	Passthrough   bool
 	StripHeader   bool
+	TokenSources  []TokenSource
 }
 
 // AccessRule represents a single ALLOW/DENY rule based on the value of a claim in
@@ -180,6 +181,34 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 					r.Passthrough = true
 				case "strip_header":
 					r.StripHeader = true
+				case "token_source":
+					args := c.RemainingArgs()
+					if len(args) < 1 {
+						return nil, c.ArgErr()
+					}
+					switch args[0] {
+					case "header":
+						if len(args) != 1 {
+							return nil, c.ArgErr()
+						}
+						r.TokenSources = append(r.TokenSources, &HeaderTokenSource{})
+					case "cookie":
+						if len(args) != 2 {
+							return nil, c.ArgErr()
+						}
+						r.TokenSources = append(r.TokenSources, &CookieTokenSource{
+							CookieName: args[1],
+						})
+					case "query_param":
+						if len(args) != 2 {
+							return nil, c.ArgErr()
+						}
+						r.TokenSources = append(r.TokenSources, &QueryTokenSource{
+							ParamName: args[1],
+						})
+					default:
+						return nil, c.Errf("unsupported token_source: '%s'", args[0])
+					}
 				}
 			}
 			rules = append(rules, r)

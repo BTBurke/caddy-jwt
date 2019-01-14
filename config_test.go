@@ -133,6 +133,50 @@ var _ = Describe("JWTAuth Config", func() {
 						Passthrough: true,
 					},
 				}},
+				{`jwt {
+					path /
+					token_source
+				}`, true, nil,
+				},
+				{`jwt {
+					path /
+					token_source unexpected
+				}`, true, nil,
+				},
+				{`jwt {
+					path /
+					token_source header foo
+				}`, true, nil,
+				},
+				{`jwt {
+					path /
+					token_source query_param
+				}`, true, nil,
+				},
+				{`jwt {
+					path /
+					token_source cookie
+				}`, true, nil,
+				},
+				{`jwt {
+					path /
+					token_source query_param param_name
+					token_source cookie cookie_name
+					token_source header
+				}`, false, []Rule{
+					Rule{
+						Path: "/",
+						TokenSources: []TokenSource{
+							&QueryTokenSource{
+								ParamName: "param_name",
+							},
+							&CookieTokenSource{
+								CookieName: "cookie_name",
+							},
+							&HeaderTokenSource{},
+						},
+					},
+				}},
 			}
 			for _, test := range tests {
 				c := caddy.NewTestController("http", test.input)
@@ -150,6 +194,7 @@ var _ = Describe("JWTAuth Config", func() {
 					Expect(rule.ExceptedPaths).To(Equal(actualRule.ExceptedPaths))
 					Expect(rule.AllowRoot).To(Equal(actualRule.AllowRoot))
 					Expect(rule.KeyBackends).To(Equal(actualRule.KeyBackends), fmt.Sprintf("expected: %v\nactual: %v", rule, actualRule))
+					Expect(rule.TokenSources).To(Equal(actualRule.TokenSources), fmt.Sprintf("expected: %v\nactual: %v", rule, actualRule))
 				}
 
 			}

@@ -9,8 +9,65 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
+)
+
+type TokenSource interface {
+	// If the returned string is empty, the token was not found.
+	// So far any implementation does not return errors.
+	ExtractToken(r *http.Request) string
+}
+
+// Extracts a token from the Authorization header in the form `Bearer <JWT Token>`
+type HeaderTokenSource struct{}
+
+func (*HeaderTokenSource) ExtractToken(r *http.Request) string {
+	jwtHeader := strings.Split(r.Header.Get("Authorization"), " ")
+	if jwtHeader[0] == "Bearer" && len(jwtHeader) == 2 {
+		return jwtHeader[1]
+	}
+	return ""
+}
+
+// Extracts a token from a cookie named `CookieName`.
+type CookieTokenSource struct {
+	CookieName string
+}
+
+func (cts *CookieTokenSource) ExtractToken(r *http.Request) string {
+	jwtCookie, err := r.Cookie(cts.CookieName)
+	if err == nil {
+		return jwtCookie.Value
+	}
+	return ""
+}
+
+// Extracts a token from a URL query parameter of the form https://example.com?ParamName=<JWT token>
+type QueryTokenSource struct {
+	ParamName string
+}
+
+func (qts *QueryTokenSource) ExtractToken(r *http.Request) string {
+	jwtQuery := r.URL.Query().Get(qts.ParamName)
+	if jwtQuery != "" {
+		return jwtQuery
+	}
+	return ""
+}
+
+var (
+	// Default TokenSources to be applied in the given order if the
+	// user did not explicitly configure them via the token_source option
+	DefaultTokenSources = []TokenSource{
+		&HeaderTokenSource{},
+		&CookieTokenSource{
+			CookieName: "jwt_token",
+		},
+		&QueryTokenSource{
+			ParamName: "token",
+		},
+	}
 )
 
 func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
@@ -54,7 +111,7 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		}
 
 		// Path matches, look for unvalidated token
-		uToken, err := ExtractToken(r)
+		uToken, err := ExtractToken(p.TokenSources, r)
 		if err != nil {
 			if p.Passthrough {
 				continue
@@ -167,23 +224,21 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 	return h.Next.ServeHTTP(w, r)
 }
 
-// ExtractToken will find a JWT token passed one of three ways: (1) as the Authorization
-// header in the form `Bearer <JWT Token>`; (2) as a cookie named `jwt_token`; (3) as
-// a URL query paramter of the form https://example.com?token=<JWT token>
-func ExtractToken(r *http.Request) (string, error) {
-	jwtHeader := strings.Split(r.Header.Get("Authorization"), " ")
-	if jwtHeader[0] == "Bearer" && len(jwtHeader) == 2 {
-		return jwtHeader[1], nil
+// ExtractToken will find a JWT token in the token sources specified.
+// If tss is empty, the DefaultTokenSources are used.
+func ExtractToken(tss []TokenSource, r *http.Request) (string, error) {
+
+	effectiveTss := tss
+	if len(effectiveTss) == 0 {
+		// Defaults are applied here as this keeps the tests the cleanest.
+		effectiveTss = DefaultTokenSources
 	}
 
-	jwtCookie, err := r.Cookie("jwt_token")
-	if err == nil {
-		return jwtCookie.Value, nil
-	}
-
-	jwtQuery := r.URL.Query().Get("token")
-	if jwtQuery != "" {
-		return jwtQuery, nil
+	for _, tss := range effectiveTss {
+		token := tss.ExtractToken(r)
+		if token != "" {
+			return token, nil
+		}
 	}
 
 	return "", fmt.Errorf("no token found")
