@@ -1,3 +1,7 @@
+# v3.7.0
+
+Added ability to change the precedence of token sources and configure the names of the cookie or query parameter.  Thanks @igor-petruk!
+
 # v3.2.0
 
 Critical bug fix for malformed paths that allow access to protected resources.  This appears to be an upstream bug in Caddy that allows fuzzy matching for paths that are autocorrected by most browser implementations, but break strict path matching that is important for protected resources.
