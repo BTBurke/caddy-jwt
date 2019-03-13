@@ -42,6 +42,7 @@ type Rule struct {
 	AccessRules   []AccessRule
 	Redirect      string
 	AllowRoot     bool
+	CheckPath     bool
 	KeyBackends   []KeyBackend
 	Passthrough   bool
 	StripHeader   bool
@@ -139,6 +140,8 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 					}
 				case "allowroot":
 					r.AllowRoot = true
+				case "checkpath":
+					r.CheckPath = true
 				case "allow":
 					args1 := c.RemainingArgs()
 					if len(args1) != 2 {

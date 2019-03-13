@@ -106,7 +106,7 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 			continue
 		}
 		if r.URL.Path == "/" && p.AllowRoot {
-			// special case for protecting children of the root path, only allow access to base directory with directive `allowbase`
+			// special case for protecting children of the root path, only allow access to base directory with directive `allowroot`
 			continue
 		}
 
@@ -147,6 +147,13 @@ func (h Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 		vClaims, err := Flatten(vToken.Claims.(jwt.MapClaims), "", DotStyle)
 		if err != nil {
 			return handleUnauthorized(w, r, p, h.Realm), nil
+		}
+
+		// Check if the actual path matches the claimed one
+		if p.CheckPath {
+			if pathClaim, ok := vClaims["path"]; ok && pathClaim != r.URL.Path {
+				return handleUnauthorized(w, r, p, h.Realm), nil
+			}
 		}
 
 		// If token contains rules with allow or deny, evaluate
