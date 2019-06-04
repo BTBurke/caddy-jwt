@@ -62,16 +62,20 @@ There are three ways to pass the token for validation: (1) in the `Authorization
 | URL Query Parameter  | `/protected?token=<token>`      |
 
 It is possible to customize what token sources should be used via the `token_source` rule. If at one or more `token_source` rules are specified, they will be used instead of the default in the given order. For example, to
-do the same validation as default, but with the different cookie and query param  names, the user could use the following snippet:
+do the same validation as default, but with the different header, cookie and query param names, the user could use the following snippet:
 
 ```
 jwt {
    ...
-   token_source header
+   token_source header my_header_type
    token_source cookie my_cookie_name
    token_source query_param my_param_name
 }
 ```
+
+#### Note about `Authorization` header
+
+The optional header type is for Bearer tokens by other names, like `ApplePass` used by Apple PassKit. If not provided, it defaults to `Bearer` as defined in RFC6750. This does not support more complex schemes that require a challenge/response.
 
 ### Constructing a valid token
 

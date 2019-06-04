@@ -145,7 +145,7 @@ var _ = Describe("JWTAuth Config", func() {
 				},
 				{`jwt {
 					path /
-					token_source header foo
+					token_source header foo bar
 				}`, true, nil,
 				},
 				{`jwt {
@@ -162,6 +162,7 @@ var _ = Describe("JWTAuth Config", func() {
 					path /
 					token_source query_param param_name
 					token_source cookie cookie_name
+					token_source header header_name
 					token_source header
 				}`, false, []Rule{
 					Rule{
@@ -173,7 +174,12 @@ var _ = Describe("JWTAuth Config", func() {
 							&CookieTokenSource{
 								CookieName: "cookie_name",
 							},
-							&HeaderTokenSource{},
+							&HeaderTokenSource{
+								HeaderName: "header_name",
+							},
+							&HeaderTokenSource{
+								HeaderName: "Bearer",
+							},
 						},
 					},
 				}},
