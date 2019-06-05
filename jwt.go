@@ -20,11 +20,13 @@ type TokenSource interface {
 }
 
 // Extracts a token from the Authorization header in the form `Bearer <JWT Token>`
-type HeaderTokenSource struct{}
+type HeaderTokenSource struct{
+	HeaderName string
+}
 
-func (*HeaderTokenSource) ExtractToken(r *http.Request) string {
+func (hts *HeaderTokenSource) ExtractToken(r *http.Request) string {
 	jwtHeader := strings.Split(r.Header.Get("Authorization"), " ")
-	if jwtHeader[0] == "Bearer" && len(jwtHeader) == 2 {
+	if jwtHeader[0] == hts.HeaderName && len(jwtHeader) == 2 {
 		return jwtHeader[1]
 	}
 	return ""
@@ -60,7 +62,9 @@ var (
 	// Default TokenSources to be applied in the given order if the
 	// user did not explicitly configure them via the token_source option
 	DefaultTokenSources = []TokenSource{
-		&HeaderTokenSource{},
+		&HeaderTokenSource{
+			HeaderName: "Bearer",
+		},
 		&CookieTokenSource{
 			CookieName: "jwt_token",
 		},

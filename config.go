@@ -188,10 +188,15 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 					}
 					switch args[0] {
 					case "header":
-						if len(args) != 1 {
+						var headerSource = &HeaderTokenSource{
+							HeaderName: "Bearer",
+						}
+						if len(args) == 2 {
+							headerSource.HeaderName = args[1]
+						} else if len(args) > 2 {
 							return nil, c.ArgErr()
 						}
-						r.TokenSources = append(r.TokenSources, &HeaderTokenSource{})
+						r.TokenSources = append(r.TokenSources, headerSource)
 					case "cookie":
 						if len(args) != 2 {
 							return nil, c.ArgErr()

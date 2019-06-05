@@ -326,7 +326,9 @@ var _ = Describe("Auth", func() {
 				&CookieTokenSource{
 					CookieName: "custom_jwt_token",
 				},
-				&HeaderTokenSource{},
+				&HeaderTokenSource{
+					HeaderName: "Bearer",
+				},
 			}
 			// These should be ignored as their names don't match.
 			url := strings.Join([]string{"/testing?token=", malformedToken}, "")
