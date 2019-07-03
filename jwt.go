@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/caddyserver/caddy/caddyhttp/httpserver"
 	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
 type TokenSource interface {
@@ -20,7 +20,7 @@ type TokenSource interface {
 }
 
 // Extracts a token from the Authorization header in the form `Bearer <JWT Token>`
-type HeaderTokenSource struct{
+type HeaderTokenSource struct {
 	HeaderName string
 }
 
