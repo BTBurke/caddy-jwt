@@ -3,9 +3,12 @@ language: go
 go:
   - 1.12.5
 
+env:
+- GO111MODULE=on
+
 install:
   - go get -t ./...
-  - go get github.com/golang/lint/golint
+  - go get golang.org/x/lint
 
 script:
   - go vet ./...
