@@ -11,8 +11,8 @@ import (
 
 	"io/ioutil"
 
-	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/caddyserver/caddy/caddyhttp/httpserver"
+	jwt "github.com/dgrijalva/jwt-go"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -486,6 +486,40 @@ var _ = Describe("Auth", func() {
 
 			Expect(result).To(Equal(http.StatusSeeOther))
 			Expect(rec.Result().StatusCode).To(Equal(http.StatusSeeOther))
+			Expect(rec.Result().Header.Get("Location")).To(Equal("/login?backTo=/testing"))
+		})
+	})
+	Describe("Redirect with given code on access deny works", func() {
+		It("return 307 when a redirect is configured and access denied", func() {
+			req, err := http.NewRequest("GET", "/testing", nil)
+
+			rec := httptest.NewRecorder()
+			rw := Auth{
+				Rules: []Rule{{Path: "/testing", Redirect: "/login", RedirectCode: http.StatusTemporaryRedirect}},
+			}
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusTemporaryRedirect))
+			Expect(rec.Result().StatusCode).To(Equal(http.StatusTemporaryRedirect))
+			Expect(rec.Result().Header.Get("Location")).To(Equal("/login"))
+		})
+		It("variables in location value are replaced", func() {
+			req, err := http.NewRequest("GET", "/testing", nil)
+
+			rec := httptest.NewRecorder()
+			rw := Auth{
+				Rules: []Rule{{Path: "/testing", Redirect: "/login?backTo={rewrite_uri}", RedirectCode: http.StatusTemporaryRedirect}},
+			}
+			result, err := rw.ServeHTTP(rec, req)
+			if err != nil {
+				Fail(fmt.Sprintf("unexpected error constructing server: %s", err))
+			}
+
+			Expect(result).To(Equal(http.StatusTemporaryRedirect))
+			Expect(rec.Result().StatusCode).To(Equal(http.StatusTemporaryRedirect))
 			Expect(rec.Result().Header.Get("Location")).To(Equal("/login?backTo=/testing"))
 		})
 	})

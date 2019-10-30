@@ -272,8 +272,9 @@ func ValidateToken(uToken string, keyBackend KeyBackend) (*jwt.Token, error) {
 func handleUnauthorized(w http.ResponseWriter, r *http.Request, rule Rule, realm string) int {
 	if rule.Redirect != "" {
 		replacer := httpserver.NewReplacer(r, nil, "")
-		http.Redirect(w, r, replacer.Replace(rule.Redirect), http.StatusSeeOther)
-		return http.StatusSeeOther
+		redirectCode := rule.GetRedirectCode(http.StatusSeeOther)
+		http.Redirect(w, r, replacer.Replace(rule.Redirect), redirectCode)
+		return redirectCode
 	}
 
 	w.Header().Add("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"%s\",error=\"invalid_token\"", realm))
@@ -286,8 +287,9 @@ func handleUnauthorized(w http.ResponseWriter, r *http.Request, rule Rule, realm
 func handleForbidden(w http.ResponseWriter, r *http.Request, rule Rule, realm string) int {
 	if rule.Redirect != "" {
 		replacer := httpserver.NewReplacer(r, nil, "")
-		http.Redirect(w, r, replacer.Replace(rule.Redirect), http.StatusSeeOther)
-		return http.StatusSeeOther
+		redirectCode := rule.GetRedirectCode(http.StatusSeeOther)
+		http.Redirect(w, r, replacer.Replace(rule.Redirect), redirectCode)
+		return redirectCode
 	}
 	w.Header().Add("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"%s\",error=\"insufficient_scope\"", realm))
 	return http.StatusForbidden
