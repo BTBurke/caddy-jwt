@@ -1,4 +1,4 @@
-module github.com/BTBurke/caddy-jwt
+module github.com/BTBurke/caddy-jwt/v3
 
 go 1.12
 
