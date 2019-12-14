@@ -2,6 +2,10 @@
 
 [![Build Status](https://travis-ci.org/BTBurke/caddy-jwt.svg?branch=master)](https://travis-ci.org/BTBurke/caddy-jwt)
 
+** Note on Caddy v2 **
+
+There is a major new version of Caddy in beta.  Caddy v2 makes significant changes to how plugins work, to the point that this plugin will no longer work with the latest version of caddy and would require significant effort to update it.  If you use this plugin and would like a Caddy v2 version, please let me know your wish list of features on [this issue](https://github.com/BTBurke/caddy-jwt/issues/57).
+
 **Authorization Middleware for Caddy**
 
 This middleware implements an authorization layer for [Caddy](https://caddyserver.com) based on JSON Web Tokens (JWT).  You can learn more about using JWT in your application at [jwt.io](https://jwt.io).
