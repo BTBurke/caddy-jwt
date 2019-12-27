@@ -34,6 +34,7 @@ If the claim is a json array of strings, the allow and deny directives will chec
 jwt {
    path [path]
    redirect [location]
+   redirectcode [code]
    allow [claim] [value]
    deny [claim] [value]
 }
@@ -54,6 +55,8 @@ jwt {
 The middleware will deny everyone with `role: member` but will allow the specific user named `someone`.  A different user with a `role: admin` or `role: foo` would be allowed because the deny rule will allow anyone that doesn't have role member.
 
 If the optional `redirect` is set, the middleware will send a redirect to the supplied location (HTTP 303) instead of an access denied code, if the access is denied.
+
+If the optional `redirectcode` is set, the middleware will use the supplied code instead of HTTP 303
 
 ### Ways of passing a token for validation
 

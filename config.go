@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/caddyserver/caddy"
 	"github.com/caddyserver/caddy/caddyhttp/httpserver"
@@ -41,6 +42,7 @@ type Rule struct {
 	ExceptedPaths []string
 	AccessRules   []AccessRule
 	Redirect      string
+	RedirectCode  int
 	AllowRoot     bool
 	KeyBackends   []KeyBackend
 	Passthrough   bool
@@ -157,6 +159,16 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 						return nil, c.ArgErr()
 					}
 					r.Redirect = args1[0]
+				case "redirectcode":
+					args1 := c.RemainingArgs()
+					if len(args1) != 1 {
+						return nil, c.ArgErr()
+					}
+					tmp, err := strconv.Atoi(args1[0])
+					if err != nil {
+						return nil, c.Err(err.Error())
+					}
+					r.RedirectCode = tmp
 				case "publickey":
 					args1 := c.RemainingArgs()
 					if len(args1) != 1 {
@@ -257,4 +269,11 @@ func parse(c *caddy.Controller) ([]Rule, error) {
 	}
 
 	return rules, nil
+}
+
+func (r Rule) GetRedirectCode(defaultCode int) int {
+	if r.RedirectCode > 0 {
+		return r.RedirectCode
+	}
+	return defaultCode
 }

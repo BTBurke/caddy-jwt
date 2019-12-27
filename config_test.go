@@ -35,6 +35,22 @@ var _ = Describe("JWTAuth Config", func() {
 			Expect(err).To(BeNil())
 		})
 
+		It("getting the code works as expected", func() {
+			tests := []struct {
+				input  Rule
+				expect int
+			}{
+				{Rule{}, http.StatusSeeOther},
+				{Rule{RedirectCode: 307}, http.StatusTemporaryRedirect},
+				{Rule{RedirectCode: 0}, http.StatusSeeOther},
+				{Rule{RedirectCode: -5}, http.StatusSeeOther},
+			}
+
+			for _, test := range tests {
+				Expect(test.input.GetRedirectCode(http.StatusSeeOther)).To(Equal(test.expect))
+			}
+		})
+
 		It("parses simple and complex blocks", func() {
 			tests := []struct {
 				input     string
@@ -45,12 +61,14 @@ var _ = Describe("JWTAuth Config", func() {
 				{"jwt {\npath /test\n}", false, []Rule{{Path: "/test"}}},
 				{`jwt {
 					path /test
-                                        redirect /login
+										redirect /login
+										redirectcode 307
 					allow user test
 				}`, false, []Rule{{
-					Path:        "/test",
-					Redirect:    "/login",
-					AccessRules: []AccessRule{{ALLOW, "user", "test"}}},
+					Path:         "/test",
+					Redirect:     "/login",
+					RedirectCode: 307,
+					AccessRules:  []AccessRule{{ALLOW, "user", "test"}}},
 				}},
 				{`jwt /test {
 					allow user test
