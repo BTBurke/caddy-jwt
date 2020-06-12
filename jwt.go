@@ -308,12 +308,18 @@ func contains(list interface{}, value string) bool {
 }
 
 func modTitleCase(s string) string {
+	result := ""
+
 	switch {
 	case len(s) == 0:
 		return s
 	case len(s) == 1:
-		return strings.ToUpper(s)
+		result = strings.ToUpper(s)
 	default:
-		return strings.ToUpper(string(s[0])) + s[1:]
+		result = strings.ToUpper(string(s[0])) + s[1:]
 	}
+
+	result = strings.Replace(result, "Cognito:", "Cognito_", -1)
+
+	return result
 }
