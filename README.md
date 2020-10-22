@@ -198,6 +198,23 @@ jwt {
 
 It should be noted that `passthrough` will *always* allow access on the path provided, regardless of whether a token is present or valid, and regardless of `allow`/`deny` directives. The application would be responsible for acting on the parsed claims.
 
+### Path Check
+
+Using `checkpath` directive the requested path is matched against a `path` claim in a JWT. The check is performed only when `path` is present and ignored otherwise. A mismatch results in an unauthorized request.
+
+```
+jwt {
+  path /
+  checkpath
+}
+```
+
+```json
+{
+  "path": "/path/to/signed/resource"
+}
+```
+
 ### Specifying Keys for Use in Validating Tokens
 
 There are two ways to specify key material used in validating tokens.  If you run Caddy in a container or via an init system like Systemd, you can directly specify your keys using the environment variables `JWT_SECRET` for HMAC or `JWT_PUBLIC_KEY` for RSA or ECDSA (PEM-encoded public key).  You cannot use both at the same time because it would open up a known security hole in the JWT specification.  When you run multiple sites, all would have to use the same keys to validate tokens.
